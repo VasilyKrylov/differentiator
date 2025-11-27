@@ -22,6 +22,7 @@
 
 #define COLOR_END           "\33[0m"
 
+// TODO: with PRINT_DEBUG add getchar() to prevent ignoring errors with lots of DEBUG_LOG()
 #define PRINT(format, ...)        printf (GREEN_BOLD_COLOR format COLOR_END, ##__VA_ARGS__)
 #define ERROR_LOG(format, ...)   fprintf (stderr, RED_BOLD_COLOR "[ERROR] %s:%d:%s(): " format "\n" COLOR_END, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define ERROR_PRINT(format, ...) fprintf (stderr, RED_BOLD_COLOR format "\n" COLOR_END, __VA_ARGS__)

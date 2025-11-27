@@ -95,6 +95,8 @@ int LogCtor (treeLog_t *log)
                                     "\\usepackage[utf8x]{inputenc}\n"
                                     "\\usepackage[english,russian]{babel}\n"
                                     "\\usepackage{amsmath}\n"
+                                    "\\usepackage{autobreak}\n"
+                                    "\\allowdisplaybreaks\n"
                                     "\\begin{document}\n"
                                     "\n");
 
@@ -340,19 +342,36 @@ int DumpLatexDifferentation (differentiator_t *diff, node_t *expression, node_t 
 
     treeLog_t *log = &diff->log;
 
-    // FIXME: multiple phrases
-    fprintf (log->latexFile, "Нетрудно заметить, что:\n"
-                             "\\begin{displaymath}\n"
+    // https://ctan.math.utah.edu/ctan/tex-archive/macros/latex/contrib/autobreak/autobreak.pdf
+    // awesome package
+
+    const char *funny[] = 
+    {
+        "Нетрудно заметить, что:",
+        "Любому ёжику понятно, что:",
+        "Из программы 3 класса вы должны знать следующее преобразование:",
+        "Любой образованный человек знает следующее:",
+        "Элементарно, Ватсон:",
+        "Это база:",
+        "Чтобы сыграть психически больного и глубоко депрессивного человека, Хоакин Феникс решил это:",
+    };
+    fprintf (log->latexFile, "%s\\\\\n"
+                             "\\begin{align}\n"
+                             "\\begin{autobreak}\n"
                              "\t\\frac{d}{d%s}(",
+                             funny[rand() % 7],
                              argument->name);
      
     int status = DumpLatexNode (diff, expression);
 
-    fprintf (log->latexFile, ") = ");
+    fprintf (log->latexFile, ") = \n"
+                             "\t");
 
     status |= DumpLatexNode (diff, result);
 
-    fprintf (log->latexFile, "\n\\end{displaymath}\n");
+    fprintf (log->latexFile, "\n"
+                             "\\end{autobreak}\n"
+                             "\\end{align}\n");
 
     return status;
 }
@@ -376,6 +395,7 @@ int DumpLatex (differentiator_t *diff, node_t *node, const char *comment)
     return status;
 }
 
+// FIXME: fix boxed
 int DumpLatexBoxed (differentiator_t *diff, node_t *node, const char *comment)
 {
     assert (diff);
@@ -385,15 +405,17 @@ int DumpLatexBoxed (differentiator_t *diff, node_t *node, const char *comment)
 
     fprintf (log->latexFile, "%s\n", comment);
 
-    fprintf (log->latexFile, "\\[\n"
-                             "\t\\boxed {\n"
-                             "\t\t");
+    fprintf (log->latexFile,// "\\[\n"
+                            //  "\t\\boxed {\n"
+                             "\\begin{align}\n"
+                             "\\begin{autobreak}\n"
+                             "\t");
 
     int status = DumpLatexNode (diff, node);
 
     fprintf (log->latexFile, "\n"
-                             "\t}\n"
-                             "\\]\n\n");
+                             "\\end{autobreak}\n"
+                             "\\end{align}\n");
 
     return status;
 }
@@ -415,7 +437,10 @@ int DumpLatexNode (differentiator_t *diff, node_t *node)
             return TREE_ERROR_INVALID_NODE;
 
         case TYPE_CONST_NUM:
-            fprintf (log->latexFile, "%g", node->value.number);
+            if (node->value.number < 0)
+                fprintf (log->latexFile, "(%g)", node->value.number);
+            else
+                fprintf (log->latexFile, "%g", node->value.number);
             break;
         
         case TYPE_VARIABLE:
@@ -447,7 +472,7 @@ int DumpLatexNodeMathOperation (differentiator_t *diff, node_t *node)
         case OP_ADD:
             fprintf (log->latexFile, "%s", "(");
             DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "+");
+            fprintf (log->latexFile, "%s", "\n\t+");
             DumpLatexNode (diff, node->right);
             fprintf (log->latexFile, "%s", ")");
             break;

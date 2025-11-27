@@ -103,8 +103,6 @@ int TreeCalculate               (differentiator_t *diff, tree_t *expression);
 double NodeCalculate            (differentiator_t *diff, node_t *node, double *values);
 
 void TreeSimplify               (tree_t *tree);
-node_t *NodeSimplifyCalc        (tree_t *tree, node_t *node);
-
 
 int TreesDiff                    (differentiator_t *diff, tree_t *expression);
 node_t *NodeDiff                (differentiator_t *diff, node_t *expression, tree_t *resTree,

@@ -27,6 +27,9 @@ static double NodeCalculateDoMath       (node_t *node, double leftVal, double ri
 static double NodeGetVariable           (differentiator_t *diff, node_t *node, double *values);
 static void AskVariableValue            (differentiator_t *diff, node_t *node, double *values);
 
+node_t *NodeSimplifyCalc        (tree_t *tree, node_t *node);
+node_t *NodeSimplifyTrivial     (tree_t *tree, node_t *node);
+
 static node_t *NodeDiffMathOperation    (differentiator_t *diff,node_t *expression, tree_t *resTree, variable_t *argument);
 static node_t *NodeDiffVariable         (node_t *expression, tree_t *resTree, variable_t *argument);
 static bool NodeFindVariable            (node_t *node, variable_t *argument);
@@ -607,6 +610,7 @@ void TreeSimplify (tree_t *tree)
     assert (tree);
 
     tree->root = NodeSimplifyCalc (tree, tree->root);
+    tree->root = NodeSimplifyTrivial (tree, tree->root);
 }
 
 node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
@@ -623,13 +627,13 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
     if (node->right == NULL) 
         return node;
 
-    double leftValue  = NAN;
-    double rightValue = NAN;
+    double leftVal  = NAN;
+    double rightVal = NAN;
 
     if (node->left != NULL)
-        leftValue = node->left->value.number;
+        leftVal = node->left->value.number;
     if (node->right != NULL)
-        rightValue = node->right->value.number;
+        rightVal = node->right->value.number;
 
     node_t *newNode = NULL;
 
@@ -638,21 +642,32 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
     {
         switch (node->value.idx)
         {
-            case OP_UKNOWN:
-                ERROR_LOG ("%s", "Uknown math operation");
-
+            case OP_ADD:    newNode = NUM_ (leftVal + rightVal);                        break;
+            case OP_SUB:    newNode = NUM_ (leftVal - rightVal);                        break;
+            case OP_MUL:    newNode = NUM_ (leftVal * rightVal);                        break;
+            case OP_DIV:    newNode = NUM_ (leftVal / rightVal);                        break;
+            case OP_POW:    newNode = NUM_ (pow (leftVal, rightVal));                   break;
+            case OP_LOG:    newNode = NUM_ (logWithBase (leftVal, rightVal));           break;
+            case OP_LN:     newNode = NUM_ (log (rightVal));                            break;
+            case OP_SIN:    newNode = NUM_ (sin (rightVal));                            break;
+            case OP_COS:    newNode = NUM_ (cos (rightVal));                            break;
+            case OP_TG:     newNode = NUM_ (tan (rightVal));                            break;
+            case OP_CTG:    newNode = NUM_ (1 / tan (rightVal));                        break;
+            case OP_ARCSIN: newNode = NUM_ (asin (rightVal));                           break;
+            case OP_ARCCOS: newNode = NUM_ (acos (rightVal));                           break;
+            case OP_ARCTG:  newNode = NUM_ (atan (rightVal));                           break;
+            case OP_ARCCTG: newNode = NUM_ (1 / atan (rightVal));                       break;
+            case OP_SH:     newNode = NUM_ (sinh (rightVal));                           break;
+            case OP_CH:     newNode = NUM_ (cosh (rightVal));                           break;
+            case OP_TH:     newNode = NUM_ (tanh (rightVal));                           break;
+            case OP_CTH:    newNode = NUM_ (1 / tanh (rightVal));                       break;
+            
+            case OP_UKNOWN: 
+                ERROR_LOG ("%s", "Uknown math operation in node"); 
                 return NULL;
-
-            case OP_ADD: newNode = NUM_ (leftValue + rightValue);   break;
-            case OP_SUB: newNode = NUM_ (leftValue - rightValue);   break;
-            case OP_MUL: newNode = NUM_ (leftValue * rightValue);   break;
-            case OP_DIV: newNode = NUM_ (leftValue / rightValue);   break;
-// NOTE: excepted argument in radians
-            case OP_SIN: newNode = NUM_ (sin (rightValue));         break;
-            case OP_COS: newNode = NUM_ (cos (rightValue));         break;
             
             default:
-                break;
+                assert (0 && "Bro, add another case for NodeSimplifyCalc()");
         }
     }
     
@@ -664,27 +679,89 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
     return newNode;
 }
 
-// node_t *NodeSimplifyStupid (tree_t *tree, node_t *node)
-// {
-//     assert (tree);
-//     assert (node);
 
-//     if (node->left != NULL)
-//         node->left = NodeSimplifyCalc (tree, node->left);
+#define cL NodeCopy (node->left,    tree)
+#define cR NodeCopy (node->right,   tree)
 
-//     if (node->right != NULL)
-//         node->right = NodeSimplifyCalc (tree, node->right);
+#define L left
+#define R right
+
+#define IS_VALUE_(childNode, numberValue)                       \
+        (node->childNode->type == TYPE_CONST_NUM &&              \
+        IsEqual (node->childNode->value.number, numberValue))   
+
+node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node)
+{
+    assert (tree);
+    assert (node);
+
+    if (node->left != NULL)
+        node->left = NodeSimplifyTrivial (tree, node->left);
+
+    if (node->right != NULL)
+        node->right = NodeSimplifyTrivial (tree, node->right);
     
-//     if (node->right == NULL) return node;
+    if (node->right == NULL) 
+        return node;
 
-//     double leftValue  = node->left ->value.number;
-//     double rightValue = node->right->value.number;
+    node_t *newNode = NULL;
 
-//     if (node->left->type == TYPE_CONST_NUM && 
-//         node->left ->value.number == 1)
+    switch (node->value.idx)
+    {
+        case OP_ADD:
+            if (IS_VALUE_ (L, 0))
+                newNode = cR;
+            if (IS_VALUE_ (R, 0))
+                newNode = cL;
+            break;
 
-//     return newNode;
-// }
+        case OP_SUB:
+            if (IS_VALUE_ (L, 0))
+                newNode = cR;
+            if (IS_VALUE_ (R, 0))
+                newNode = cL;
+            break;
+
+
+        case OP_MUL:
+            if (IS_VALUE_ (L, 1))
+                newNode = cR;
+            if (IS_VALUE_ (R, 1))
+                newNode = cL;
+            if (IS_VALUE_ (L, 0) || IS_VALUE_ (R, 0))
+                newNode = NUM_ (0);
+            break;
+        
+        case OP_DIV:
+            if (IS_VALUE_ (R, 1)) // (...) / 1
+                newNode = cL;
+            if (IS_VALUE_ (L, 0)) // 0 / (...) 
+                newNode = NUM_ (0);
+            break;
+
+        case OP_POW:
+            if (IS_VALUE_ (R, 1)) // ^1
+                newNode = cL;
+            if (IS_VALUE_ (R, 0) || IS_VALUE_ (L, 1)) // (...)^0 || 1^(...)
+                newNode = NUM_ (1);
+            break;
+
+        default: break;
+    }
+
+    if (newNode == NULL) 
+        return node;
+
+    TreeDelete (tree, &node);
+
+    return newNode;
+}
+
+#undef cL
+#undef cR
+#undef L
+#undef R
+#undef IS_VALUE_
 
 #undef NUM_
 
@@ -774,9 +851,9 @@ int TreesDiff (differentiator_t *diff, tree_t *expression)
         TREE_DUMP (diff, tree, "first devirative tree by '%s'", var->name);
 
         TreeSimplify (tree);
-        TREE_DUMP (diff, tree, "%s", "Simplified firstDerivative");
+        TREE_DUMP (diff, tree, "%s", "Simplified derivative tree");
 
-        DumpLatexBoxed (diff, tree->root, "Ответ: ");
+        DumpLatexBoxed (diff, tree->root, "ОТВЕТ (упрощённый): ");
     }
 
     DEBUG_PRINT ("%s", "==========   END OF DIFFERENTATION   ==========\n\n");
@@ -818,7 +895,7 @@ int AskUserAboutDifferentation (differentiator_t *diff, size_t *diffTimes, varia
 
     *var = FindVariableByName (diff, varName);
 
-    if (var == NULL)
+    if (*var == NULL)
     {
         *var = &diff->variables[0];
 
