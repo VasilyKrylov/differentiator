@@ -15,6 +15,7 @@ static size_t imageCounter = 0;
 const char * const kBlack       = "#000000";
 const char * const kGray        = "#ebebe0";
 
+const char * const kRed         = "#ff0000";
 const char * const kViolet      = "#cc99ff";
 const char * const kBlue        = "#66ccff";
 
@@ -97,6 +98,10 @@ int LogCtor (treeLog_t *log)
                                     "\\usepackage{amsmath}\n"
                                     "\\usepackage{autobreak}\n"
                                     "\\allowdisplaybreaks\n"
+                                    "\n"
+                                    "\\newcommand{\\ctan}{\\mathrm{ctan}}"
+                                    "\\newcommand{\\arcctan}{\\mathrm{arcctan}}"
+                                    "\n"
                                     "\\begin{document}\n"
                                     "\n");
 
@@ -116,7 +121,9 @@ void LogDtor (treeLog_t *log)
 
     char command[commandSize] = {};
 
-    snprintf (command, commandSize, "pdflatex -interaction=errorstopmode %s", log->latexFilePath);
+    snprintf (command, commandSize, "pdflatex "
+                                     ON_RELEASE ("> /dev/null ") 
+                                     "%s", log->latexFilePath);
 
     DEBUG_VAR ("%s", command);
 
@@ -214,6 +221,57 @@ int TreeDumpImg (differentiator_t *diff, node_t *node)
     return TREE_OK;
 }
 
+// NOTE: better to make argument for dump to choose in wich style to make image (?)
+// void TreePrefixPassOld (differentiator_t *diff, node_t *node, FILE *graphFile)
+// {
+//     assert (diff);
+//     assert (node);
+//     assert (graphFile);
+
+//     fprintf (graphFile,
+//             "\tnode%p [shape=Mrecord; style=\"filled\"; fillcolor=\"%s\"; "
+//             "label = \"{ type = %s",
+//             node, kBlue, GetValueTypeName(node->type));
+    
+//     fprintf (graphFile, "%s", " | value = ");
+
+//     int idx = node->value.idx;
+
+//     switch (node->type)
+//     {
+//         case TYPE_UKNOWN:           fprintf (graphFile, "%g", node->value.number);                      break;
+//         case TYPE_CONST_NUM:        fprintf (graphFile, "%g", node->value.number);                      break;
+//         case TYPE_MATH_OPERATION:   fprintf (graphFile, "%s", operators[idx].name);                     break; // FIXME: make find function
+//         // case TYPE_VARIABLE:         fprintf (graphFile, "%d (\\\"%s\\\")", idx, diff->variables[idx].name);   break;
+//         case TYPE_VARIABLE:         fprintf (graphFile, "%d (\\\" \\\")", idx);   break;
+//         default:                    fprintf (graphFile, "error");                                       break;
+//     }
+
+//     fprintf (graphFile, " | ptr = [%p] | left = [%p] | right = [%p] }\"];\n", 
+//                         node, node->left, node->right);
+
+//     DEBUG_VAR ("%p", node);
+//     DEBUG_LOG ("\t node->left: %p", node->left);
+//     DEBUG_LOG ("\t node->right: %p", node->right);
+
+//     if (node->left != NULL)
+//     {
+//         DEBUG_LOG ("\t %p->%p\n", node, node->left);
+
+//         fprintf (graphFile, "\tnode%p->node%p\n", node, node->left);
+        
+//         TreePrefixPass (diff, node->left, graphFile);
+//     }    
+
+//     if (node->right != NULL)
+//     {
+//         DEBUG_LOG ("\t %p->%p\n", node, node->left);
+
+//         fprintf (graphFile, "\tnode%p->node%p\n", node, node->right);
+        
+//         TreePrefixPass (diff, node->right, graphFile);
+//     }
+// }
 void TreePrefixPass (differentiator_t *diff, node_t *node, FILE *graphFile)
 {
     assert (diff);
@@ -221,26 +279,34 @@ void TreePrefixPass (differentiator_t *diff, node_t *node, FILE *graphFile)
     assert (graphFile);
 
     fprintf (graphFile,
-            "\tnode%p [shape=Mrecord; style=\"filled\"; fillcolor=\"%s\"; "
-            "label = \"{ type = %s",
-            node, kBlue, GetValueTypeName(node->type));
-    
-    fprintf (graphFile, "%s", " | value = ");
+             "\tnode%p [shape=Mrecord; style=\"filled\"; ",
+             node);
+
+    switch (node->type)
+    {
+        case TYPE_UKNOWN:           fprintf (graphFile, "fillcolor=\"%s\";", kRed); break;
+        case TYPE_CONST_NUM:        fprintf (graphFile, "fillcolor=\"%s\";", kBlue); break;
+        case TYPE_MATH_OPERATION:   fprintf (graphFile, "fillcolor=\"%s\";", kGreen); break;
+        case TYPE_VARIABLE:         fprintf (graphFile, "fillcolor=\"%s\";", kViolet); break;                                        break;
+        
+        default: assert (0);
+    }
+
+    fprintf (graphFile, " label = \" {");
 
     int idx = node->value.idx;
 
     switch (node->type)
     {
-        case TYPE_UKNOWN:           fprintf (graphFile, "%g", node->value.number);                      break;
-        case TYPE_CONST_NUM:        fprintf (graphFile, "%g", node->value.number);                      break;
-        case TYPE_MATH_OPERATION:   fprintf (graphFile, "%s", operators[idx].name);                     break; // FIXME: make find function
-        // case TYPE_VARIABLE:         fprintf (graphFile, "%d (\\\"%s\\\")", idx, diff->variables[idx].name);   break;
-        case TYPE_VARIABLE:         fprintf (graphFile, "%d (\\\" \\\")", idx);   break;
-        default:                    fprintf (graphFile, "error");                                       break;
+        // FIXME: make find function instead of [idx]
+        case TYPE_UKNOWN:           fprintf (graphFile, "%g", node->value.number);                          break;
+        case TYPE_CONST_NUM:        fprintf (graphFile, "%g", node->value.number);                          break;
+        case TYPE_MATH_OPERATION:   fprintf (graphFile, "%s", operators[idx].name);                         break;
+        case TYPE_VARIABLE:         fprintf (graphFile, "%s", diff->variables[idx].name); break;
+        default:                    fprintf (graphFile, "error");                                           break;
     }
 
-    fprintf (graphFile, " | ptr = [%p] | left = [%p] | right = [%p] }\"];\n", 
-                        node, node->left, node->right);
+    fprintf (graphFile, " }\"];\n");
 
     DEBUG_VAR ("%p", node);
     DEBUG_LOG ("\t node->left: %p", node->left);
@@ -332,6 +398,8 @@ int DumpMakeImg (node_t *node, treeLog_t *log)
     return TREE_OK;
 }
 
+// =============== LATEX ===============
+
 int DumpLatexDifferentation (differentiator_t *diff, node_t *expression, node_t *result,
                              variable_t *argument)
 {
@@ -358,6 +426,7 @@ int DumpLatexDifferentation (differentiator_t *diff, node_t *expression, node_t 
     fprintf (log->latexFile, "%s\\\\\n"
                              "\\begin{align}\n"
                              "\\begin{autobreak}\n"
+                             "\\MoveEqLeft\n"
                              "\t\\frac{d}{d%s}(",
                              funny[rand() % 7],
                              argument->name);
@@ -500,9 +569,9 @@ int DumpLatexNodeMathOperation (differentiator_t *diff, node_t *node)
             break;
 
         case OP_POW:
-            fprintf (log->latexFile, "%s", "{");
+            fprintf (log->latexFile, "%s", "{(");
             DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "}^{");
+            fprintf (log->latexFile, "%s", ")}^{");
             DumpLatexNode (diff, node->right);
             fprintf (log->latexFile, "%s", "}");
             break;
@@ -529,6 +598,61 @@ int DumpLatexNodeMathOperation (differentiator_t *diff, node_t *node)
             fprintf (log->latexFile, "%s", "\\cos(");
             DumpLatexNode (diff, node->right);
             fprintf (log->latexFile, "%s", ")");
+            break;
+
+        case OP_TG:
+            fprintf (log->latexFile, "%s", "\\tan{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+
+        case OP_CTG:
+            fprintf (log->latexFile, "%s", "\\ctan{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+
+        case OP_ARCSIN:
+            fprintf (log->latexFile, "%s", "\\arcsin{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+        case OP_ARCCOS:
+            fprintf (log->latexFile, "%s", "\\arccos{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+
+        case OP_ARCTG:
+            fprintf (log->latexFile, "%s", "\\arctg{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+        case OP_ARCCTG:
+            fprintf (log->latexFile, "%s", "\\arcctg{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+
+        case OP_SH:
+            fprintf (log->latexFile, "%s", "\\sh{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+        case OP_CH:
+            fprintf (log->latexFile, "%s", "\\ch{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+        case OP_TH:
+            fprintf (log->latexFile, "%s", "\\th{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
+            break;
+        case OP_CTH:
+            fprintf (log->latexFile, "%s", "\\cth{(");
+            DumpLatexNode (diff, node->right);
+            fprintf (log->latexFile, "%s", ")}");
             break;
         
         default:

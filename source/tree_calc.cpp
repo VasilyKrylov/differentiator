@@ -27,8 +27,8 @@ static double NodeCalculateDoMath       (node_t *node, double leftVal, double ri
 static double NodeGetVariable           (differentiator_t *diff, node_t *node, double *values);
 static void AskVariableValue            (differentiator_t *diff, node_t *node, double *values);
 
-node_t *NodeSimplifyCalc        (tree_t *tree, node_t *node);
-node_t *NodeSimplifyTrivial     (tree_t *tree, node_t *node);
+node_t *NodeSimplifyCalc                (tree_t *tree, node_t *node, bool *modified);
+node_t *NodeSimplifyTrivial             (tree_t *tree, node_t *node, bool *modified);
 
 static node_t *NodeDiffMathOperation    (differentiator_t *diff,node_t *expression, tree_t *resTree, variable_t *argument);
 static node_t *NodeDiffVariable         (node_t *expression, tree_t *resTree, variable_t *argument);
@@ -427,8 +427,9 @@ int CheckForReallocVariables (differentiator_t *diff)
             diff->variablesCapacity = 1;
 
         diff->variablesCapacity *= 2;
-        
-        variable_t *newVariables = (variable_t *)realloc (diff->variables, diff->variablesCapacity);
+
+        variable_t *newVariables = (variable_t *) realloc (diff->variables, 
+                                                           diff->variablesCapacity * sizeof (variable_t));
         if (newVariables == NULL)
         {
             ERROR_LOG ("Error reallocating memory for diff->variables - %s", strerror (errno));
@@ -439,7 +440,6 @@ int CheckForReallocVariables (differentiator_t *diff)
 
         diff->variables = newVariables;
 
-        DEBUG_LOG ("new diff->variablesCapacity = %lu", diff->variablesCapacity);
     }
 
     return TREE_OK;
@@ -609,20 +609,30 @@ void TreeSimplify (tree_t *tree)
 {
     assert (tree);
 
-    tree->root = NodeSimplifyCalc (tree, tree->root);
-    tree->root = NodeSimplifyTrivial (tree, tree->root);
+    bool modifiedFirst = true;
+    bool modifiedSecond = true;
+    while (modifiedFirst || modifiedSecond)
+    {
+        modifiedFirst  = false;
+        modifiedSecond = false;
+
+        tree->root = NodeSimplifyCalc (tree, tree->root, &modifiedFirst);
+        tree->root = NodeSimplifyTrivial (tree, tree->root, &modifiedSecond);
+    }
+    
 }
 
-node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
+node_t *NodeSimplifyCalc (tree_t *tree, node_t *node, bool *modified)
 {
     assert (tree);
     assert (node);
+    assert (modified);
 
     if (node->left != NULL)
-        node->left = NodeSimplifyCalc (tree, node->left);
+        node->left = NodeSimplifyCalc (tree, node->left, modified);
 
     if (node->right != NULL)
-        node->right = NodeSimplifyCalc (tree, node->right);
+        node->right = NodeSimplifyCalc (tree, node->right, modified);
     
     if (node->right == NULL) 
         return node;
@@ -642,25 +652,25 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
     {
         switch (node->value.idx)
         {
-            case OP_ADD:    newNode = NUM_ (leftVal + rightVal);                        break;
-            case OP_SUB:    newNode = NUM_ (leftVal - rightVal);                        break;
-            case OP_MUL:    newNode = NUM_ (leftVal * rightVal);                        break;
-            case OP_DIV:    newNode = NUM_ (leftVal / rightVal);                        break;
-            case OP_POW:    newNode = NUM_ (pow (leftVal, rightVal));                   break;
-            case OP_LOG:    newNode = NUM_ (logWithBase (leftVal, rightVal));           break;
-            case OP_LN:     newNode = NUM_ (log (rightVal));                            break;
-            case OP_SIN:    newNode = NUM_ (sin (rightVal));                            break;
-            case OP_COS:    newNode = NUM_ (cos (rightVal));                            break;
-            case OP_TG:     newNode = NUM_ (tan (rightVal));                            break;
-            case OP_CTG:    newNode = NUM_ (1 / tan (rightVal));                        break;
-            case OP_ARCSIN: newNode = NUM_ (asin (rightVal));                           break;
-            case OP_ARCCOS: newNode = NUM_ (acos (rightVal));                           break;
-            case OP_ARCTG:  newNode = NUM_ (atan (rightVal));                           break;
-            case OP_ARCCTG: newNode = NUM_ (1 / atan (rightVal));                       break;
-            case OP_SH:     newNode = NUM_ (sinh (rightVal));                           break;
-            case OP_CH:     newNode = NUM_ (cosh (rightVal));                           break;
-            case OP_TH:     newNode = NUM_ (tanh (rightVal));                           break;
-            case OP_CTH:    newNode = NUM_ (1 / tanh (rightVal));                       break;
+            case OP_ADD:    newNode = NUM_ (leftVal + rightVal);                    break;
+            case OP_SUB:    newNode = NUM_ (leftVal - rightVal);                    break;
+            case OP_MUL:    newNode = NUM_ (leftVal * rightVal);                    break;
+            case OP_DIV:    newNode = NUM_ (leftVal / rightVal);                    break;
+            case OP_POW:    newNode = NUM_ (pow (leftVal, rightVal));               break;
+            case OP_LOG:    newNode = NUM_ (logWithBase (leftVal, rightVal));       break;
+            case OP_LN:     newNode = NUM_ (log (rightVal));                        break;
+            case OP_SIN:    newNode = NUM_ (sin (rightVal));                        break;
+            case OP_COS:    newNode = NUM_ (cos (rightVal));                        break;
+            case OP_TG:     newNode = NUM_ (tan (rightVal));                        break;
+            case OP_CTG:    newNode = NUM_ (1 / tan (rightVal));                    break;
+            case OP_ARCSIN: newNode = NUM_ (asin (rightVal));                       break;
+            case OP_ARCCOS: newNode = NUM_ (acos (rightVal));                       break;
+            case OP_ARCTG:  newNode = NUM_ (atan (rightVal));                       break;
+            case OP_ARCCTG: newNode = NUM_ (1 / atan (rightVal));                   break;
+            case OP_SH:     newNode = NUM_ (sinh (rightVal));                       break;
+            case OP_CH:     newNode = NUM_ (cosh (rightVal));                       break;
+            case OP_TH:     newNode = NUM_ (tanh (rightVal));                       break;
+            case OP_CTH:    newNode = NUM_ (1 / tanh (rightVal));                   break;
             
             case OP_UKNOWN: 
                 ERROR_LOG ("%s", "Uknown math operation in node"); 
@@ -671,10 +681,12 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
         }
     }
     
-    if (newNode == NULL) 
+    if (newNode == NULL)
         return node;
 
     TreeDelete (tree, &node);
+
+    *modified = true;
 
     return newNode;
 }
@@ -690,16 +702,17 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node)
         (node->childNode->type == TYPE_CONST_NUM &&              \
         IsEqual (node->childNode->value.number, numberValue))   
 
-node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node)
+node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
 {
     assert (tree);
     assert (node);
+    assert (modified);
 
     if (node->left != NULL)
-        node->left = NodeSimplifyTrivial (tree, node->left);
+        node->left = NodeSimplifyTrivial (tree, node->left, modified);
 
     if (node->right != NULL)
-        node->right = NodeSimplifyTrivial (tree, node->right);
+        node->right = NodeSimplifyTrivial (tree, node->right, modified);
     
     if (node->right == NULL) 
         return node;
@@ -754,6 +767,8 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node)
 
     TreeDelete (tree, &node);
 
+    *modified = true;
+
     return newNode;
 }
 
@@ -799,6 +814,13 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node)
                          NULL, right)
 #define COS_(right)                                                                 \
         NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_COS},             \
+                         NULL, right)
+
+#define SH_(right)                                                                 \
+        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_SH},             \
+                         NULL, right)
+#define CH_(right)                                                                 \
+        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_CH},             \
                          NULL, right)
 
 
@@ -1049,6 +1071,57 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
             return MUL_ (NUM_ (-1),
                              MUL_ (SIN_ (cR),
                                        dR));
+
+        case OP_TG:
+            return DIV_ (NUM_ (1),
+                         POW_ (MUL_ (COS_ (cR), dR),
+                               NUM_ (2)));
+        
+        case OP_CTG:
+            return DIV_ (NUM_ (1),
+                         POW_ (MUL_ (SIN_ (cR), dR),
+                               NUM_ (2)));
+
+        case OP_ARCSIN:
+            return DIV_ (dR,
+                         POW_ (SUB_ (NUM_(1), 
+                                     POW_ (cR, NUM_ (2))),
+                               NUM_ (0.5)));
+        case OP_ARCCOS:
+            return DIV_ (MUL_ (NUM_ (-1),
+                               dR),
+                         POW_ (SUB_ (NUM_(1), 
+                                     POW_ (cR, NUM_ (2))),
+                               NUM_ (0.5)));
+
+        case OP_ARCTG:
+            return DIV_ (dR,
+                         ADD_ (NUM_(1), 
+                               POW_ (cR, 
+                                     NUM_ (2))));
+        case OP_ARCCTG:
+            return DIV_ (MUL_ (NUM_ (-1), 
+                               dR),
+                         ADD_ (NUM_(1), 
+                               POW_ (cR, 
+                                     NUM_ (2))));
+
+        case OP_SH:
+            return MUL_ (CH_ (cR),
+                         dR);
+        case OP_CH:
+            return MUL_ (SH_ (cR),
+                         dR);
+
+        case OP_TH:
+            return DIV_ (dR,
+                         POW_ (CH_ (cR),
+                               NUM_(2)));
+        case OP_CTH:
+            return DIV_ (MUL_ (NUM_ (-1),
+                               dR),
+                         POW_ (SH_ (cR),
+                               NUM_(2)));
         
 
         default:

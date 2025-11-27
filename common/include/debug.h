@@ -61,12 +61,14 @@ enum commonErrors
                 DEBUG_LOG ("%s = \"" format "\";", #name, name); \
             } while(0)
     #define ON_DEBUG(...) __VA_ARGS__
+    #define ON_RELEASE(...)
 
 #else
     #define DEBUG_LOG(format, ...)
     #define DEBUG_PRINT(format, ...)
     #define DEBUG_VAR(format, name)
     #define ON_DEBUG(...)
+    #define ON_RELEASE(...) __VA_ARGS__
 
 #endif // PRINT_DEBUG
 

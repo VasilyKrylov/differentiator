@@ -86,6 +86,15 @@ const operator_t operators[] =
     {.name = "sin",     .idx = OP_SIN,      }, 
     {.name = "cos",     .idx = OP_COS,      }, 
     {.name = "tg",      .idx = OP_TG,       }, 
+    {.name = "ctg",     .idx = OP_CTG,      }, 
+    {.name = "arcsin",  .idx = OP_ARCSIN,   }, 
+    {.name = "arccos",  .idx = OP_ARCCOS,   }, 
+    {.name = "arctg",   .idx = OP_ARCTG,    }, 
+    {.name = "arcctg",  .idx = OP_ARCCTG,   }, 
+    {.name = "sh",      .idx = OP_SH,       }, 
+    {.name = "ch",      .idx = OP_CH,       }, 
+    {.name = "th",      .idx = OP_TH,       }, 
+    {.name = "cth",     .idx = OP_CTH,      }, 
 };
 const size_t operatorNumber = sizeof(operators) / sizeof(operator_t);
 
