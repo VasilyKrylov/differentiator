@@ -5,23 +5,8 @@
 
 #include "tree.h"
 
-union value_t
-{
-    double number;
-    int idx;
-};
-
-struct node_t
-{
-    type_t type = TYPE_UKNOWN;
-    treeDataType value;
-
-    // node_t *parent = NULL; FIXME: add parents
-    node_t *left  = NULL;
-    node_t *right = NULL;
-};
-
-enum operatorsIdxes
+// : size_t because of size_t idx in variable_t
+enum keywordIdxes_t : size_t
 {
     OP_UKNOWN,
     OP_ADD,
@@ -47,8 +32,11 @@ enum operatorsIdxes
 
 struct variable_t
 {
-    char *name = NULL;
-    size_t idx = 0;
+    char *name   = NULL;
+    size_t len   = 0;
+
+    size_t idx   = 0;
+    double value = 0;
 };
 
 struct differentiator_t
@@ -66,55 +54,72 @@ struct differentiator_t
     char *buffer = NULL;
 };
 
-struct operator_t
+struct keyword_t
 {
     const char *name     = NULL;
-    operatorsIdxes idx   = OP_UKNOWN;
-    ssize_t numberOfArgs = 0;
+    size_t nameLen       = 0;
+    keywordIdxes_t idx     = OP_UKNOWN;
+    bool isFunction      = 0;
+    size_t numberOfArgs  = 0;
 };
 
-const operator_t operators[] = 
+#define KEYWORD(nameStr, idxKey, isFunctionKey, numberOfArgsKey)    \
+        {.name = nameStr,                                           \
+         .nameLen = sizeof (nameStr) - 1,                           \
+         .idx = idxKey,                                             \
+         .isFunction = isFunctionKey,                               \
+         .numberOfArgs = numberOfArgsKey}
+
+const keyword_t keywords[] = 
 {
-    {.name = "uknonwn", .idx = OP_UKNOWN,   },
-    {.name = "+",       .idx = OP_ADD,      },
-    {.name = "-",       .idx = OP_SUB,      },
-    {.name = "*",       .idx = OP_MUL,      },
-    {.name = "/",       .idx = OP_DIV,      },
-    {.name = "^",       .idx = OP_POW,      },
-    {.name = "log",     .idx = OP_LOG,      },
-    {.name = "ln",      .idx = OP_LN,       },
-    {.name = "sin",     .idx = OP_SIN,      }, 
-    {.name = "cos",     .idx = OP_COS,      }, 
-    {.name = "tg",      .idx = OP_TG,       }, 
-    {.name = "ctg",     .idx = OP_CTG,      }, 
-    {.name = "arcsin",  .idx = OP_ARCSIN,   }, 
-    {.name = "arccos",  .idx = OP_ARCCOS,   }, 
-    {.name = "arctg",   .idx = OP_ARCTG,    }, 
-    {.name = "arcctg",  .idx = OP_ARCCTG,   }, 
-    {.name = "sh",      .idx = OP_SH,       }, 
-    {.name = "ch",      .idx = OP_CH,       }, 
-    {.name = "th",      .idx = OP_TH,       }, 
-    {.name = "cth",     .idx = OP_CTH,      }, 
+    KEYWORD ("uknown_keyword",  OP_UKNOWN,  0,  0),
+    KEYWORD ("+",               OP_ADD,     0,  0),
+    KEYWORD ("-",               OP_SUB,     0,  0),
+    KEYWORD ("*",               OP_MUL,     0,  0),
+    KEYWORD ("/",               OP_DIV,     0,  0),
+    KEYWORD ("^",               OP_POW,     0,  0),
+    KEYWORD ("log",             OP_LOG,     1,  2),
+    KEYWORD ("ln",              OP_LN,      1,  1),
+    KEYWORD ("sin",             OP_SIN,     1,  1),
+    KEYWORD ("cos",             OP_COS,     1,  1),
+    KEYWORD ("tg",              OP_TG,      1,  1),
+    KEYWORD ("ctg",             OP_CTG,     1,  1),
+    KEYWORD ("arcsin",          OP_ARCSIN,  1,  1),
+    KEYWORD ("arccos",          OP_ARCCOS,  1,  1),
+    KEYWORD ("arctg",           OP_ARCTG,   1,  1),
+    KEYWORD ("arcctg",          OP_ARCCTG,  1,  1),
+    KEYWORD ("sh",              OP_SH,      1,  1),
+    KEYWORD ("ch",              OP_CH,      1,  1),
+    KEYWORD ("th",              OP_TH,      1,  1),
+    KEYWORD ("cth",             OP_CTH,     1,  1),
 };
-const size_t operatorNumber = sizeof(operators) / sizeof(operator_t);
+const size_t kNumberOfKeywords = sizeof(keywords) / sizeof(keyword_t);
 
 
-int DifferentiatorCtor          (differentiator_t *diff, size_t variablesCapacity);
-void DifferentiatorDtor         (differentiator_t *diff);
+int DifferentiatorCtor              (differentiator_t *diff, size_t variablesCapacity);
+void DifferentiatorDtor             (differentiator_t *diff);
 
-const char * GetValueTypeName   (type_t type);
-int TreeLoadFromFile            (differentiator_t *diff, tree_t *tree,
-                                 const char *fileName, char **buffer, size_t *bufferLen);
-int TreeSaveToFile              (tree_t *tree, const char *fileName);
-int NodeSaveToFile              (node_t *node, FILE *file);
+const char *GetTypeName             (type_t type);
 
-int TreeCalculate               (differentiator_t *diff, tree_t *expression);
-double NodeCalculate            (differentiator_t *diff, node_t *node, double *values);
+variable_t *FindVariableByIdx       (differentiator_t *diff, size_t idx);
+variable_t *FindVariableByName      (differentiator_t *diff, char *varName, size_t varNameLen);
+const keyword_t *FindKeywordByIdx   (keywordIdxes_t idx);
 
-void TreeSimplify               (tree_t *tree);
+int CheckForReallocVariables        (differentiator_t *diff);
+int FindOrAddVariable               (differentiator_t *diff, char **curPos, size_t len, 
+                                     type_t *type, treeDataType *value);
+void TryToFindOperator              (char *str, int len, type_t *type, treeDataType *value);
 
-int TreesDiff                    (differentiator_t *diff, tree_t *expression);
-node_t *NodeDiff                (differentiator_t *diff, node_t *expression, tree_t *resTree,
-                                 variable_t *argument);
+// int TreeSaveToFile               (tree_t *tree, const char *fileName);
+// int NodeSaveToFile               (node_t *node, FILE *file);
+
+int TreeCalculate                   (differentiator_t *diff, tree_t *expression);
+double NodeCalculate                (differentiator_t *diff, node_t *node);
+
+void TreeSimplify                   (differentiator_t *diff, tree_t *tree);
+
+int TreesDiff                       (differentiator_t *diff, tree_t *expression);
+node_t *NodeDiff                    (differentiator_t *diff, node_t *expression, tree_t *resTree,
+                                     variable_t *argument);
 
 #endif // K_TREE_CALC_H

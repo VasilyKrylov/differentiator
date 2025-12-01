@@ -38,7 +38,8 @@ int NodeDump                    (differentiator_t *diff, node_t *node,
                                  const char *file, int line, const char *func, 
                                  const char *format, ...)
                                 __attribute__ ((format (printf, 6, 7)));
-int DumpLatexDifferentation     (differentiator_t *diff, node_t *expression, node_t *result, variable_t *argument);
+int DumpLatexDifferentation     (differentiator_t *diff, node_t *expression, node_t *result, 
+                                 variable_t *argument);
 int DumpLatex                   (differentiator_t *diff, node_t *node, const char *comment);
 int DumpLatexBoxed              (differentiator_t *diff, node_t *node, const char *comment);
 int DumpLatexNode               (differentiator_t *diff, node_t *node);

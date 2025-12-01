@@ -67,6 +67,8 @@ node_t *NodeCtorAndFill (tree_t *tree,
     assert (tree);
     // leftChild can be NULL
 
+    DEBUG_PRINT ("%s", "\n========== NODE CTOR START ==========\n");
+
     node_t *node = (node_t *) calloc (1, sizeof(node_t));
     if (node == NULL)
     {
@@ -87,7 +89,7 @@ node_t *NodeCtorAndFill (tree_t *tree,
     }
     else 
     {
-        DEBUG_LOG ("\t value.idx = %d", value.idx);
+        DEBUG_LOG ("\t value.idx = %lu", value.idx);
     }
 
     DEBUG_LOG ("\t left = [%p]", node->left);
@@ -97,6 +99,8 @@ node_t *NodeCtorAndFill (tree_t *tree,
     node->value         = value;
     node->left          = leftChild;
     node->right         = rightChild;
+
+    DEBUG_PRINT ("%s", "========== NODE CTOR END ==========\n\n");
 
     return node;
 }

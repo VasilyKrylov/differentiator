@@ -11,13 +11,11 @@
             return NAN;                                                 \
         }
 
-
-
-double GetGramma (char *s);
-double GetExpression (char **curPos);
-double GetTerm (char **curPos);
-double GetPrimaryExpression (char **curPos);
-double GetNumber (char **curPos);
+static double GetGramma             (char *s);
+static double GetExpression         (char **curPos);
+static double GetTerm               (char **curPos);
+static double GetPrimaryExpression  (char **curPos);
+static double GetNumber             (char **curPos, bool strict);
 
 int main ()
 {
@@ -117,10 +115,10 @@ double GetPrimaryExpression (char **curPos)
         return val;
     }
 
-    return GetNumber (curPos);
+    return GetNumber (curPos, true);
 }
 
-double GetNumber (char **curPos)
+double GetNumber (char **curPos, bool strict)
 {
     assert (curPos);
     assert (*curPos);
@@ -130,7 +128,7 @@ double GetNumber (char **curPos)
 
     int res = sscanf (*curPos, "%lf%n", &val, &readBytes);
     DEBUG_VAR ("%d", res);
-    if (res != 1)
+    if (res != 1 && strict)
         SYNTAX_ERROR;
 
     *curPos += readBytes;

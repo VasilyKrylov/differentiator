@@ -7,9 +7,8 @@
 #include "debug.h"
 
 typedef union value_t treeDataType;
-const char * const treeDataTypeStr = "union value_t";
 
-const char treeSaveFileName[]       = "tree.txt";
+const char ktreeSaveFileName[]       = "tree.txt";
 
 #define TREE_DO_AND_RETURN(action)          \
         do                                  \
@@ -39,7 +38,6 @@ const char treeSaveFileName[]       = "tree.txt";
         node = NodeCtor (tree);                     \
         if (node == NULL)                           \
             return TREE_ERROR_CREATING_NODE
-
 
 #ifdef PRINT_DEBUG
 
@@ -86,8 +84,21 @@ enum type_t // NOTE: maybe move to tree_calc.h
     TYPE_VARIABLE       = 3
 }; 
 
-union value_t;
-struct node_t;
+union value_t
+{
+    double number;
+    size_t idx;
+};
+
+struct node_t
+{
+    type_t type = TYPE_UKNOWN;
+    treeDataType value;
+
+    // node_t *parent = NULL; FIXME: add parents
+    node_t *left  = NULL;
+    node_t *right = NULL;
+};
 
 struct tree_t
 {
@@ -110,16 +121,12 @@ enum treeError_t
     TREE_ERROR_NULL_DATA                = 1 << 2, // NOTE: remove(?)
     TREE_ERROR_NOT_ENOUGH_NODES         = 1 << 3,
     TREE_ERROR_TO_MUCH_NODES            = 1 << 4,
-    TREE_ERROR_INVALID_NEW_QUESTION     = 1 << 5, // FIXME: move to akinator (?)
-    TREE_ERROR_SAVE_FILE_SYNTAX         = 1 << 6,
-    TREE_ERROR_LOAD_INTO_NOT_EMPTY      = 1 << 7,
-    TREE_ERROR_INVALID_NODE             = 1 << 8,
-    TREE_ERROR_INVALID_PATH             = 1 << 9, // bad value on stackNodePath
-    TREE_ERROR_CREATING_NODE            = 1 << 10,
-    TREE_ERROR_SYNTAX_IN_SAVE_FILE      = 1 << 11,
-
-    TREE_NODE_FOUND                     = 1 << 12,
-    TREE_NODE_NOT_FOUND                 = 1 << 13,
+    TREE_ERROR_LOAD_INTO_NOT_EMPTY      = 1 << 5,
+    TREE_ERROR_INVALID_NODE             = 1 << 6,
+    TREE_ERROR_INVALID_PATH             = 1 << 7, // bad value on stackNodePath
+    TREE_ERROR_CREATING_NODE            = 1 << 8,
+    TREE_ERROR_SYNTAX_IN_SAVE_FILE      = 1 << 9,
+    TREE_ERROR_NODE_NOT_FOUND           = 1 << 11,
 
     TREE_ERROR_COMMON                   = 1 << 31
 };

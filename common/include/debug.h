@@ -22,11 +22,6 @@
 
 #define COLOR_END           "\33[0m"
 
-// TODO: with PRINT_DEBUG add getchar() to prevent ignoring errors with lots of DEBUG_LOG()
-#define PRINT(format, ...)        printf (GREEN_BOLD_COLOR format COLOR_END, ##__VA_ARGS__)
-#define ERROR_LOG(format, ...)   fprintf (stderr, RED_BOLD_COLOR "[ERROR] %s:%d:%s(): " format "\n" COLOR_END, __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define ERROR_PRINT(format, ...) fprintf (stderr, RED_BOLD_COLOR format "\n" COLOR_END, __VA_ARGS__)
-
 enum commonErrors
 {
     COMMON_ERROR_OK                     = 0,
@@ -42,13 +37,13 @@ enum commonErrors
     COMMON_ERROR_RUNNING_SYSTEM_COMMAND = 1 << 10 // TODO: add text messages
 };
 
-
+// FIXME:
 #ifdef PRINT_DEBUG
-    #define DEBUG_LOG(format, ...)                                      \
-            do {                                                        \
-                fprintf(stderr, BLUE_BOLD_COLOR                         \
-                        "[DEBUG] %s:%d:%s(): " format "\n" COLOR_END,   \
-                        __FILE__, __LINE__, __func__, __VA_ARGS__);     \
+    #define DEBUG_LOG(format, ...)                                          \
+            do {                                                            \
+                fprintf(stderr, BLUE_BOLD_COLOR                             \
+                        "[DEBUG]" COLOR_END " %s:%d:%s(): \t" format "\n" , \
+                        __FILE__, __LINE__, __func__, __VA_ARGS__);         \
             } while(0)
 
     #define DEBUG_PRINT(format, ...)                                            \
@@ -56,21 +51,47 @@ enum commonErrors
                 fprintf(stderr, BLUE_BOLD_COLOR format COLOR_END, __VA_ARGS__); \
             } while(0)
 
-    #define DEBUG_VAR(format, name)                              \
-            do {                                                 \
-                DEBUG_LOG ("%s = \"" format "\";", #name, name); \
+    #define DEBUG_STR(name)                                     \
+            do {                                                \
+                DEBUG_LOG ("%s = \"%s\"", #name, name);         \
             } while(0)
+
+    #define DEBUG_CHR(name)                                     \
+            do {                                                \
+                DEBUG_LOG ("%s = '%c'", #name, name);           \
+            } while(0)
+
+    #define DEBUG_PTR(name)                                     \
+            do {                                                \
+                DEBUG_LOG ("%s = [%p]", #name, name);           \
+            } while (0)
+
+    #define DEBUG_VAR(format, name)                             \
+            do {                                                \
+                DEBUG_LOG ("%s = " format, #name, name);    \
+            } while (0)
     #define ON_DEBUG(...) __VA_ARGS__
     #define ON_RELEASE(...)
-
 #else
     #define DEBUG_LOG(format, ...)
     #define DEBUG_PRINT(format, ...)
+    #define DEBUG_STR(name)
+    #define DEBUG_CHR(name)
+    #define DEBUG_PTR(name)
     #define DEBUG_VAR(format, name)
     #define ON_DEBUG(...)
     #define ON_RELEASE(...) __VA_ARGS__
-
 #endif // PRINT_DEBUG
+
+#define PRINT(format, ...)                                                              \
+        printf (GREEN_BOLD_COLOR format COLOR_END, ##__VA_ARGS__)
+#define ERROR_LOG(format, ...)                                                          \
+        fprintf (stderr, RED_BOLD_COLOR "[ERROR] %s:%d:%s(): " format "\n" COLOR_END,   \
+                 __FILE__, __LINE__, __func__, __VA_ARGS__)                             \
+        ON_DEBUG (; getchar())
+#define ERROR_PRINT(format, ...)                                                        \
+        fprintf (stderr, RED_BOLD_COLOR format "\n" COLOR_END, __VA_ARGS__)             \
+        ON_DEBUG (; getchar())
 
 void PrintCommonError (int error);
 

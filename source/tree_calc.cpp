@@ -7,34 +7,24 @@
 #include "tree_calc.h"
 
 #include "tree.h"
+#include "tree_load_infix.h"
 #include "utils.h"
 #include "float_math.h"
 
-static int TreeLoadNode                 (differentiator_t *diff, node_t **node,
-                                         char *buffer, char **curPos);
-static int TreeLoadNodeAndFill          (differentiator_t *diff, node_t **node,
-                                         char *buffer, char **curPos);
-static int TreeLoadChildNodes           (differentiator_t *diff, node_t **node,
-                                         char *buffer, char **curPos);
-static void TryToFindOperator           (char *str, int len, type_t *type, treeDataType *value);
-
-static int FindOrAddVariable            (differentiator_t *diff, char **curPos, int len, 
-                                         type_t *type, treeDataType *value);
-static variable_t *FindVariableByName   (differentiator_t *diff, char *varName);
-static int CheckForReallocVariables     (differentiator_t *diff);
-
 static double NodeCalculateDoMath       (node_t *node, double leftVal, double rightVal);
-static double NodeGetVariable           (differentiator_t *diff, node_t *node, double *values);
-static void AskVariableValue            (differentiator_t *diff, node_t *node, double *values);
+static double NodeGetVariable           (differentiator_t *diff, node_t *node);
+static void AskVariableValue            (differentiator_t *diff, node_t *node);
 
-node_t *NodeSimplifyCalc                (tree_t *tree, node_t *node, bool *modified);
-node_t *NodeSimplifyTrivial             (tree_t *tree, node_t *node, bool *modified);
+static node_t *NodeSimplifyCalc         (tree_t *tree, node_t *node, bool *modified);
+static node_t *NodeSimplifyTrivial      (tree_t *tree, node_t *node, bool *modified);
 
-static node_t *NodeDiffMathOperation    (differentiator_t *diff,node_t *expression, tree_t *resTree, variable_t *argument);
-static node_t *NodeDiffVariable         (node_t *expression, tree_t *resTree, variable_t *argument);
+static node_t *NodeDiffMathOperation    (differentiator_t *diff,node_t *expression, 
+                                         tree_t *resTree, variable_t *argument);
+static node_t *NodeDiffVariable         (node_t *expression, tree_t *resTree, 
+                                         variable_t *argument);
 static bool NodeFindVariable            (node_t *node, variable_t *argument);
-int AskUserAboutDifferentation          (differentiator_t *diff, size_t *diffTimes, variable_t **var);
-
+static int AskUserAboutDifferentation   (differentiator_t *diff, size_t *diffTimes, 
+                                         variable_t **var);
 
 
 // NOTE: diffNumber - how many times to differentiate, idk better naming
@@ -55,11 +45,13 @@ int DifferentiatorCtor (differentiator_t *diff, size_t variablesCapacity)
     }
 
     diff->variablesCapacity = variablesCapacity;
+    diff->diffTreesCnt      = 0;
 
     TREE_DO_AND_RETURN (TREE_CTOR (&diff->expression, &diff->log));
 
     size_t len = 0;
-    TREE_DO_AND_RETURN (TreeLoadFromFile (diff, &diff->expression, treeSaveFileName, &diff->buffer, &len));
+    TREE_DO_AND_RETURN (TreeLoadInfixFromFile (diff, &diff->expression, 
+                        ktreeSaveFileName, &diff->buffer, &len));
 
     return TREE_OK;
 }
@@ -90,243 +82,59 @@ void DifferentiatorDtor (differentiator_t *diff)
     diff->buffer = NULL;
 }
 
-int TreeSaveToFile (tree_t *tree, const char *fileName)
-{
-    FILE *outputFile = fopen (fileName, "w");
-    if (outputFile == NULL)
-    {
-        ERROR_LOG ("Error opening file \"%s\"", fileName);
+// int TreeSaveToFile (tree_t *tree, const char *fileName)
+// {
+//     FILE *outputFile = fopen (fileName, "w");
+//     if (outputFile == NULL)
+//     {
+//         ERROR_LOG ("Error opening file \"%s\"", fileName);
         
-        return TREE_ERROR_COMMON |
-               COMMON_ERROR_OPENING_FILE;
-    }
+//         return TREE_ERROR_COMMON |
+//                COMMON_ERROR_OPENING_FILE;
+//     }
 
-    int status = NodeSaveToFile (tree->root, outputFile);
+//     int status = NodeSaveToFile (tree->root, outputFile);
 
-    fclose (outputFile);
+//     fclose (outputFile);
 
-    return status;
-}
+//     return status;
+// }
 
-int NodeSaveToFile (node_t *node, FILE *file)
-{
-    assert (node);
-    assert (file);
+// int NodeSaveToFile (node_t *node, FILE *file)
+// {
+//     assert (node);
+//     assert (file);
 
-    // NOTE: maybe add macro for printf to check it's return code
-    if (node->type == TYPE_CONST_NUM)
-    {
-        fprintf (file, "(\"%g\"", node->value.number);
-    }
-    else if (node->type == TYPE_MATH_OPERATION)
-    {
-        // FIXME:
-    }
-    else if (node->type == TYPE_VARIABLE)
-    {
-        // FIXME:
-    }
+//     // NOTE: maybe add macro for printf to check it's return code
+//     if (node->type == TYPE_CONST_NUM)
+//     {
+//         fprintf (file, "(\"%g\"", node->value.number);
+//     }
+//     else if (node->type == TYPE_MATH_OPERATION)
+//     {
+//         // FIXME:
+//     }
+//     else if (node->type == TYPE_VARIABLE)
+//     {
+//         // FIXME:
+//     }
 
-    if (node->left != NULL)
-        NodeSaveToFile (node->left, file);
-    else
-        fprintf (file, "%s", "nil");
+//     if (node->left != NULL)
+//         NodeSaveToFile (node->left, file);
+//     else
+//         fprintf (file, "%s", "nil");
 
-    if (node->right != NULL)
-        NodeSaveToFile (node->right, file);
-    else
-        fprintf (file, "%s", "nil");
+//     if (node->right != NULL)
+//         NodeSaveToFile (node->right, file);
+//     else
+//         fprintf (file, "%s", "nil");
 
-    fprintf (file, "%s", ")");
+//     fprintf (file, "%s", ")");
 
-    return TREE_OK;
-}
+//     return TREE_OK;
+// }
 
-int TreeLoadFromFile (differentiator_t *diff, tree_t *tree,
-                     const char *fileName, char **buffer, size_t *bufferLen)
-{
-    assert (diff);
-    assert (tree);
-    assert (fileName);
-    assert (buffer);
-    assert (bufferLen);
-
-    DEBUG_PRINT ("\n========== LOADING TREE FROM \"%s\" ==========\n", fileName);
-
-    if (tree->root != NULL)
-    {
-        ERROR_LOG ("%s", "TREE_ERROR_LOAD_INTO_NOT_EMPTY");
-        
-        return TREE_ERROR_LOAD_INTO_NOT_EMPTY;
-    }
-    
-    *buffer = ReadFile (fileName, bufferLen);
-    if (buffer == NULL)
-        return TREE_ERROR_COMMON |
-               COMMON_ERROR_READING_FILE;
-
-    char *curPos = *buffer;
-    
-    int status = TreeLoadNode (diff, &tree->root, *buffer, &curPos);
-
-    if (status != TREE_OK)
-    {
-        ERROR_LOG ("%s", "Error in TreeLoadNode()");
-
-        return TREE_ERROR_SAVE_FILE_SYNTAX;
-    }
-
-    TREE_DUMP (diff, tree, "%s", "After load");
-    
-    DEBUG_PRINT ("%s", "==========    END OF LOADING TREE    ==========\n\n");
-    return TREE_OK;
-}
-
-// FIXME: buffer overflow
-// file must begin with '(', I don't see any problem with it
-// TODO: move to tree_calc.cpp
-int TreeLoadNode (differentiator_t *diff, node_t **node,
-                  char *buffer, char **curPos)
-{
-    assert (diff);
-    assert (node);
-    assert (buffer);
-    assert (curPos);
-    assert (*curPos);
-
-    tree_t *tree = &diff->expression;
-
-    if (**curPos == '(')
-    {
-        NODE_CTOR (tree, *node);
-
-        int status = TreeLoadNodeAndFill (diff, node, buffer, curPos);
-
-        return status;
-    }
-    else if (strncmp (*curPos, "nil", sizeof("nil") - 1) == 0)
-    {
-        *curPos += sizeof ("nil") - 1;
-
-        *node = NULL;
-
-        return TREE_OK;
-    }
-    else 
-    {
-        ERROR_LOG ("%s", "Syntax error in tree dump file - uknown beginning of the node");
-        ERROR_LOG ("curPos = \'%s\';", *curPos);
-
-        return TREE_ERROR_SYNTAX_IN_SAVE_FILE;
-    }
-}
-
-int TreeLoadNodeAndFill (differentiator_t *diff, node_t **node,
-                         char *buffer, char **curPos)
-{
-    assert (diff);
-    assert (node);
-    assert (buffer);
-    assert (curPos);
-    assert (*curPos);
-
-    DEBUG_PRINT ("%s", "\n===== CREATING NEW NODE =====\n");
-    DEBUG_VAR ("%s", *curPos);
-
-    (*curPos)++; // move after '('
-    *curPos = SkipSpaces (*curPos);
-    
-    int readBytes = 0;
-    type_t type = TYPE_UKNOWN;
-    treeDataType value = {};
-
-    // FIXME: rewrite this part
-    if (sscanf (*curPos, "%lf%n", &value.number, &readBytes) == 1)
-    {
-        type = TYPE_CONST_NUM;
-        
-        DEBUG_LOG ("number %g detected", value.number);
-    }
-    else
-    {
-        sscanf (*curPos, "%*s%n", &readBytes);
-        
-        TryToFindOperator (*curPos, readBytes, &type, &value);
-
-        if (type == TYPE_UKNOWN)
-        {
-            int status = FindOrAddVariable (diff, curPos, readBytes, &type, &value);
-            if (status != TREE_OK)
-                return status;
-        }
-    }
-
-    DEBUG_LOG ("%s", "After detecting type:");
-    DEBUG_VAR ("%s", *curPos);
-    DEBUG_LOG ("readBytes = %d", readBytes);
-    DEBUG_LOG ("type = %d", type);
-    DEBUG_LOG ("value.idx    = %d", value.idx);
-    DEBUG_LOG ("value.number = %g", value.number);
-    
-    NodeFill (*node, type, value, NULL, NULL);
-    
-    *curPos += readBytes;
-    *curPos += 1; // because it can be '\0', not space
-    DEBUG_VAR ("%s", *curPos);
-    *curPos = SkipSpaces (*curPos);
-    
-    // DEBUG_VAR ("%s", data);
-    NODE_DUMP (diff, *node, "Created new node. curPos = \'%s\'", *curPos);
-
-    int status = TreeLoadChildNodes (diff, node, buffer, curPos);
-    if (status != TREE_OK)
-        return status;
-    
-    if (**curPos != ')')
-    {
-        ERROR_LOG ("%s", "Syntax error in tree dump file - missing closing bracket ')'");
-        ERROR_LOG ("curPos = \'%s\';", *curPos);
-
-        return TREE_ERROR_SYNTAX_IN_SAVE_FILE;
-    }
-
-    (*curPos)++;
-
-    return TREE_OK;
-}
-
-int TreeLoadChildNodes (differentiator_t *diff, node_t **node, // FIXME child node
-                        char *buffer, char **curPos)
-{
-    assert (diff);
-    assert (node);
-    assert (*node);
-    assert (buffer);
-
-    int status = TreeLoadNode (diff, &(*node)->left, buffer, curPos);
-    if (status != TREE_OK)
-        return status;
-
-    if ((*node)->left != NULL)
-    {
-        NODE_DUMP (diff, (*node)->left, "After creating left subtree. \n"
-                                        "curPos = \'%s\'", *curPos);
-    }
-    
-    status = TreeLoadNode (diff, &(*node)->right, buffer, curPos);
-    if (status != TREE_OK)
-        return status;
-
-    if ((*node)->right != NULL)
-    {
-        NODE_DUMP (diff, (*node)->right, "After creating right subtree. \n"
-                                         "curPos = \'%s\'", *curPos);
-    }
-    
-    return TREE_OK;
-}
-
-const char * GetValueTypeName (type_t type)
+const char *GetTypeName (type_t type)
 {
     switch (type)
     {
@@ -343,40 +151,71 @@ void TryToFindOperator (char *str, int len, type_t *type, treeDataType *value)
 {
     assert (str);
 
-    for (size_t i = 0; i < operatorNumber; i++)
+    for (size_t i = 0; i < kNumberOfKeywords; i++)
     {
-        if (strncmp (str, operators[i].name, (size_t) len) == 0)
+        if (strncmp (str, keywords[i].name, (size_t) len) == 0)
         {
             *type = TYPE_MATH_OPERATION;
-            value->idx = operators[i].idx;
+            value->idx = keywords[i].idx;
 
-            DEBUG_LOG ("FOUND \"%s\"", operators[i].name);
+            DEBUG_LOG ("FOUND \"%s\"", keywords[i].name);
         }
     }
 }
 
-
-variable_t *FindVariableByName (differentiator_t *diff, char *varName)
+variable_t *FindVariableByName (differentiator_t *diff, char *varName, size_t varNameLen)
 {
     assert (diff);
     assert (varName);
 
+    DEBUG_LOG ("varName = \"%.*s\"", (int) varNameLen, varName);
+    DEBUG_VAR ("%lu", varNameLen);
+
     for (size_t i = 0; i < diff->variablesSize; i++)
     {
         DEBUG_VAR ("%lu", i);
-        DEBUG_VAR ("%p", diff->variables[i].name);
-        DEBUG_VAR ("%s", diff->variables[i].name);
+        DEBUG_PTR (diff->variables[i].name);
+        DEBUG_LOG ("diff->variables[i].name = \"%.*s\"", 
+                   (int)diff->variables[i].len,
+                   diff->variables[i].name);
         
-        if (strcmp (diff->variables[i].name, varName) == 0)
+        int res = 12;
+        if ((res = strncmp (diff->variables[i].name, varName, varNameLen)) == 0)
         {
             return &diff->variables[i];
         }
+        DEBUG_VAR ("%d", res);
     }
 
     return NULL;
 }
 
-int FindOrAddVariable (differentiator_t *diff, char **curPos, int len, type_t *type, treeDataType *value)
+variable_t *FindVariableByIdx (differentiator_t *diff, size_t idx)
+{
+    assert (diff);
+
+    for (size_t i = 0; i < diff->variablesSize; i++)
+    {
+        if (diff->variables[i].idx == idx)
+            return &diff->variables[i];
+    }
+
+    return NULL;
+}
+
+const keyword_t *FindKeywordByIdx (keywordIdxes_t idx)
+{
+    for (size_t i = 0; i < kNumberOfKeywords; i++)
+    {
+        if (keywords[i].idx == idx)
+            return &keywords[i];
+    }
+
+    return NULL;
+}
+
+int FindOrAddVariable (differentiator_t *diff, char **curPos, 
+                       size_t len, type_t *type, treeDataType *value)
 {
     assert (diff);
     assert (curPos);
@@ -384,38 +223,42 @@ int FindOrAddVariable (differentiator_t *diff, char **curPos, int len, type_t *t
     assert (type);
     assert (value);
 
-    TREE_DO_AND_RETURN ( CheckForReallocVariables (diff));
-
     *type = TYPE_VARIABLE;
     char *varName = *curPos;
-    (*curPos)[len] = '\0';
+    // (*curPos)[len] = '\0'; // TODO: this can crash something
 
-    variable_t *variable = FindVariableByName (diff, varName);
+    variable_t *variable = FindVariableByName (diff, varName, len);
 
     if (variable == NULL)
     {
         // NOTE: New function - add new variable ?
-        value->idx = int (diff->variablesSize);
+        TREE_DO_AND_RETURN (CheckForReallocVariables (diff));
 
-        diff->variables[diff->variablesSize].idx = diff->variablesSize;
+        size_t idx = (diff->variablesSize);
+        value->idx = idx;
 
-        DEBUG_VAR ("%p", varName);
-        diff->variables[diff->variablesSize].name = varName;
-        DEBUG_VAR ("%s", diff->variables[diff->variablesSize].name);
+        diff->variables[idx].name = varName;
+        diff->variables[idx].len = len;
+        diff->variables[idx].idx = idx;
+        diff->variables[idx].value = NAN;
+
+        DEBUG_LOG ("%.*s", (int)diff->variables[idx].len, diff->variables[idx].name);
 
         diff->variablesSize++;
     }
     else
     {
-        value->idx = (int) variable->idx;
+        value->idx = variable->idx;
     }
 
     DEBUG_VAR ("%lu", diff->variablesSize);
-    DEBUG_LOG ("variable name is '%s'", varName);
-    DEBUG_LOG ("(*value).idx = '%d'", (*value).idx);
+    DEBUG_LOG ("variable name is '%.*s'", 
+               (int)diff->variables[diff->variablesSize].len, varName);
+    DEBUG_LOG ("(*value).idx = '%lu'", (*value).idx);
 
     return TREE_OK;
 }
+
 
 int CheckForReallocVariables (differentiator_t *diff)
 {
@@ -453,42 +296,27 @@ int TreeCalculate (differentiator_t *diff, tree_t *expression)
     assert (expression);
 
     DEBUG_VAR ("%lu", diff->variablesSize);
-
-    double *values = (double *) calloc (diff->variablesSize, sizeof (double));
-    if (values == NULL)
-    {
-        ERROR_LOG ("Error allocating memory for values - %s",
-                    strerror (errno));
-
-        return TREE_ERROR_COMMON |
-               COMMON_ERROR_ALLOCATING_MEMORY;
-    }
-
-    for (size_t i = 0; i < diff->variablesSize; i++)
-        values[i] = NAN;
     
-    double result = NodeCalculate (diff, expression->root, values);
+    double result = NodeCalculate (diff, expression->root);
 
-    PRINT ("\n");
     PRINT ("Expression is equals to %g\n", result);
-
-    free (values);
 
     return TREE_OK;
 }
 
-double NodeCalculate (differentiator_t *diff, node_t *node, double *values)
+double NodeCalculate (differentiator_t *diff, node_t *node)
 {
+    assert (diff);
     assert (node);
 
     double leftVal  = NAN;
     double rightVal = NAN;
 
     if (node->left != NULL)
-        leftVal = NodeCalculate (diff, node->left, values);
+        leftVal = NodeCalculate (diff, node->left);
 
     if (node->right != NULL)
-        rightVal = NodeCalculate (diff, node->right, values);
+        rightVal = NodeCalculate (diff, node->right);
 
     switch (node->type)
     {
@@ -504,7 +332,7 @@ double NodeCalculate (differentiator_t *diff, node_t *node, double *values)
             return NodeCalculateDoMath (node, leftVal, rightVal);
 
         case TYPE_VARIABLE:
-            return NodeGetVariable (diff, node, values);
+            return NodeGetVariable (diff, node);
     
         default:
             assert (0 && "Add new case in NodeCalctulate or wtf bro");
@@ -546,29 +374,29 @@ double NodeCalculateDoMath (node_t *node, double leftVal, double rightVal)
     }
 }
 
-double NodeGetVariable (differentiator_t *diff, node_t *node, double *values)
+double NodeGetVariable (differentiator_t *diff, node_t *node)
 {
     assert (diff);
     assert (node);
-    assert (values);
 
-    DEBUG_VAR ("%d", node->value.idx);
+    DEBUG_VAR ("%lu", node->value.idx);
 
-    if (isnan (values[node->value.idx]))
+    if (isnan (diff->variables[node->value.idx].value))
     {
-        AskVariableValue (diff, node, values);
+        AskVariableValue (diff, node);
     }
     
-    return values[node->value.idx];
+    return diff->variables[node->value.idx].value;
 }
 
-void AskVariableValue (differentiator_t *diff, node_t *node, double *values)
+void AskVariableValue (differentiator_t *diff, node_t *node)
 {
     assert (diff);
+    assert (node);
 
-    int idx = node->value.idx;
+    size_t idx = node->value.idx;
 
-    DEBUG_VAR ("%d", idx);
+    DEBUG_VAR ("%lu", idx);
 
     int status   = 0;
     int attempts = 0;
@@ -580,23 +408,26 @@ void AskVariableValue (differentiator_t *diff, node_t *node, double *values)
             ERROR_PRINT ("%s", "This is not a float point number. Please, try again");
         }
 
-        PRINT ("Input value of variable '%s'\n"
-               " > ", 
+        PRINT ("Input value of variable '%.*s'\n"
+               " > ",
+               (int)diff->variables[idx].len,
                diff->variables[idx].name);
 
-        status = scanf ("%lg", &values[idx]);
+        status = scanf ("%lg", &diff->variables[idx].value);
         ClearBuffer ();
 
         attempts++;
     }
 
+    // FIXME: delete values
     if (attempts >= 5)
     {
-        values[idx] = 1.0;
+        diff->variables[idx].value = 0;
         PRINT ("I am tired.\n"
-               "Value of '%s' was set to %g.\n"
+               "Value of '%.*s' was set to %g.\n"
                "Think about your behavior", 
-               diff->variables[idx].name, values[idx]);
+               (int) diff->variables[idx].len, diff->variables[idx].name, 
+               diff->variables[idx].value);
     }
 }
 
@@ -605,8 +436,9 @@ void AskVariableValue (differentiator_t *diff, node_t *node, double *values)
 #define NUM_(num)                                                               \
         NodeCtorAndFill (tree, TYPE_CONST_NUM, {.number = num}, NULL, NULL);
 
-void TreeSimplify (tree_t *tree)
+void TreeSimplify (differentiator_t *diff, tree_t *tree)
 {
+    assert (diff);
     assert (tree);
 
     bool modifiedFirst = true;
@@ -617,9 +449,11 @@ void TreeSimplify (tree_t *tree)
         modifiedSecond = false;
 
         tree->root = NodeSimplifyCalc (tree, tree->root, &modifiedFirst);
+        TREE_DUMP (diff, tree, "%s", "After NodeSimplifyCalc()");
+
         tree->root = NodeSimplifyTrivial (tree, tree->root, &modifiedSecond);
+        TREE_DUMP (diff, tree, "%s", "After NodeSimplifyTrivial()");
     }
-    
 }
 
 node_t *NodeSimplifyCalc (tree_t *tree, node_t *node, bool *modified)
@@ -691,7 +525,6 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node, bool *modified)
     return newNode;
 }
 
-
 #define cL NodeCopy (node->left,    tree)
 #define cR NodeCopy (node->right,   tree)
 
@@ -724,14 +557,14 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
         case OP_ADD:
             if (IS_VALUE_ (L, 0))
                 newNode = cR;
-            if (IS_VALUE_ (R, 0))
+            else if (IS_VALUE_ (R, 0))
                 newNode = cL;
             break;
 
         case OP_SUB:
             if (IS_VALUE_ (L, 0))
                 newNode = cR;
-            if (IS_VALUE_ (R, 0))
+            else if (IS_VALUE_ (R, 0))
                 newNode = cL;
             break;
 
@@ -739,23 +572,23 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
         case OP_MUL:
             if (IS_VALUE_ (L, 1))
                 newNode = cR;
-            if (IS_VALUE_ (R, 1))
+            else if (IS_VALUE_ (R, 1))
                 newNode = cL;
-            if (IS_VALUE_ (L, 0) || IS_VALUE_ (R, 0))
+            else if (IS_VALUE_ (L, 0) || IS_VALUE_ (R, 0))
                 newNode = NUM_ (0);
             break;
         
         case OP_DIV:
             if (IS_VALUE_ (R, 1)) // (...) / 1
                 newNode = cL;
-            if (IS_VALUE_ (L, 0)) // 0 / (...) 
+            else if (IS_VALUE_ (L, 0)) // 0 / (...) 
                 newNode = NUM_ (0);
             break;
 
         case OP_POW:
             if (IS_VALUE_ (R, 1)) // ^1
                 newNode = cL;
-            if (IS_VALUE_ (R, 0) || IS_VALUE_ (L, 1)) // (...)^0 || 1^(...)
+            else if (IS_VALUE_ (R, 0) || IS_VALUE_ (L, 1)) // (...)^0 || 1^(...)
                 newNode = NUM_ (1);
             break;
 
@@ -780,49 +613,7 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
 
 #undef NUM_
 
-// ============= DIFFERENTATION =============
-
-#define cN NodeCopy (expression,         resTree)
-#define cL NodeCopy (expression->left,   resTree)
-#define cR NodeCopy (expression->right,  resTree)
-
-#define dL NodeDiff (diff, expression->left,  resTree, argument)
-#define dR NodeDiff (diff, expression->right, resTree, argument)
-
-#define NUM_(num)                                                                   \
-        NodeCtorAndFill (resTree, TYPE_CONST_NUM, {.number = num}, NULL, NULL)
-#define ADD_(left, right)                                                           \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_ADD},             \
-                         left, right)
-#define SUB_(left, right)                                                           \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_SUB},             \
-                         left, right)
-#define MUL_(left, right)                                                           \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_MUL},             \
-                         left, right)
-#define DIV_(left, right)                                                           \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_DIV},             \
-                         left, right)
-#define POW_(left, right)                                                           \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_POW},             \
-                         left, right)
-#define LN_(right)                                                                  \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_LN},              \
-                         NULL, right)
-#define SIN_(right)                                                                 \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_SIN},             \
-                         NULL, right)
-#define COS_(right)                                                                 \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_COS},             \
-                         NULL, right)
-
-#define SH_(right)                                                                 \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_SH},             \
-                         NULL, right)
-#define CH_(right)                                                                 \
-        NodeCtorAndFill (resTree, TYPE_MATH_OPERATION, {.idx = OP_CH},             \
-                         NULL, right)
-
+#include "dsl_define.h"
 
 int TreesDiff (differentiator_t *diff, tree_t *expression)
 {
@@ -832,10 +623,12 @@ int TreesDiff (differentiator_t *diff, tree_t *expression)
     DEBUG_PRINT ("%s", "\n==========  START OF DIFFERENTATION  ==========\n");
 
     size_t diffTimes = 0;
-    variable_t *var = 0;
+    variable_t *var = NULL;
 
     TREE_DO_AND_RETURN (AskUserAboutDifferentation (diff, &diffTimes, &var));
 
+    if (diffTimes == 0) 
+        return TREE_OK;
 
     diff->diffTreesCnt = diffTimes;
     diff->diffTrees = (tree_t *) calloc (diff->diffTreesCnt, sizeof (tree_t));
@@ -853,9 +646,7 @@ int TreesDiff (differentiator_t *diff, tree_t *expression)
         TREE_DO_AND_RETURN (TREE_CTOR (&diff->diffTrees[i], &diff->log));
     }
 
-
     DumpLatex (diff, expression->root, "Найдём производную следующей функции:");
-
 
     for (size_t i = 0; i < diff->diffTreesCnt; i++)
     {
@@ -872,13 +663,14 @@ int TreesDiff (differentiator_t *diff, tree_t *expression)
 
         TREE_DUMP (diff, tree, "first devirative tree by '%s'", var->name);
 
-        TreeSimplify (tree);
+        TreeSimplify (diff, tree);
         TREE_DUMP (diff, tree, "%s", "Simplified derivative tree");
 
         DumpLatexBoxed (diff, tree->root, "ОТВЕТ (упрощённый): ");
     }
 
     DEBUG_PRINT ("%s", "==========   END OF DIFFERENTATION   ==========\n\n");
+
 
 
     return TREE_OK;
@@ -903,6 +695,9 @@ int AskUserAboutDifferentation (differentiator_t *diff, size_t *diffTimes, varia
                      *diffTimes);
     }
 
+    if (diffTimes == 0)
+        return TREE_OK;
+
 
     PRINT ("By which variable should program differentiate the expression?\n"
            " > ");
@@ -915,14 +710,16 @@ int AskUserAboutDifferentation (differentiator_t *diff, size_t *diffTimes, varia
         return TREE_ERROR_COMMON |
                status;
 
-    *var = FindVariableByName (diff, varName);
+    // -1 because '\0'
+    *var = FindVariableByName (diff, varName, varNameLen - 1);
 
     if (*var == NULL)
     {
         *var = &diff->variables[0];
 
         ERROR_PRINT ("There is no such variable\n"
-                     "I will differentiate expression by '%s'",
+                     "I will differentiate expression by '%.*s'",
+                     (int)(*var)->len,
                      (*var)->name);
     }
 
@@ -977,7 +774,7 @@ node_t *NodeDiffVariable (node_t *expression, tree_t *resTree, variable_t *argum
     assert (expression);
     assert (resTree);
 
-    DEBUG_VAR ("%d", expression->value.idx);
+    DEBUG_VAR ("%lu", expression->value.idx);
     DEBUG_VAR ("%s", argument->name);
 
     if (argument->idx != (size_t) expression->value.idx)
@@ -1129,20 +926,6 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
     }
 }
 
-#undef cN
-#undef cL
-#undef cR
-#undef dL
-#undef dR
-#undef NUM_
-#undef ADD_
-#undef SUB_
-#undef MUL_
-#undef DIV_
-#undef POW_
-#undef LN_
-#undef SIN_
-#undef COS_
 
 bool NodeFindVariable (node_t *node, variable_t *argument)
 {
@@ -1166,3 +949,5 @@ bool NodeFindVariable (node_t *node, variable_t *argument)
 
     return found;
 }
+
+#include "dsl_undef.h"
