@@ -51,47 +51,51 @@ struct differentiator_t
     size_t variablesCapacity = 0;
     size_t variablesSize = 0;
 
+    variable_t *varToDiff = NULL;
+
     char *buffer = NULL;
 };
 
 struct keyword_t
 {
-    const char *name     = NULL;
-    size_t nameLen       = 0;
-    keywordIdxes_t idx     = OP_UKNOWN;
-    bool isFunction      = 0;
-    size_t numberOfArgs  = 0;
+    const char *name        = NULL;
+    size_t nameLen          = 0;
+    keywordIdxes_t idx      = OP_UKNOWN;
+    bool isFunction         = 0;
+    size_t numberOfArgs     = 0;
+    const char *latexFormat = NULL;
 };
 
-#define KEYWORD(nameStr, idxKey, isFunctionKey, numberOfArgsKey)    \
-        {.name = nameStr,                                           \
-         .nameLen = sizeof (nameStr) - 1,                           \
-         .idx = idxKey,                                             \
-         .isFunction = isFunctionKey,                               \
-         .numberOfArgs = numberOfArgsKey}
+#define KEYWORD(nameStr, idxKey, isFunctionKey, numberOfArgsKey, texForm)   \
+        {.name = nameStr,                                                   \
+         .nameLen = sizeof (nameStr) - 1,                                   \
+         .idx = idxKey,                                                     \
+         .isFunction = isFunctionKey,                                       \
+         .numberOfArgs = numberOfArgsKey,                                   \
+         .latexFormat = texForm}
 
 const keyword_t keywords[] = 
 {
-    KEYWORD ("uknown_keyword",  OP_UKNOWN,  0,  0),
-    KEYWORD ("+",               OP_ADD,     0,  0),
-    KEYWORD ("-",               OP_SUB,     0,  0),
-    KEYWORD ("*",               OP_MUL,     0,  0),
-    KEYWORD ("/",               OP_DIV,     0,  0),
-    KEYWORD ("^",               OP_POW,     0,  0),
-    KEYWORD ("log",             OP_LOG,     1,  2),
-    KEYWORD ("ln",              OP_LN,      1,  1),
-    KEYWORD ("sin",             OP_SIN,     1,  1),
-    KEYWORD ("cos",             OP_COS,     1,  1),
-    KEYWORD ("tg",              OP_TG,      1,  1),
-    KEYWORD ("ctg",             OP_CTG,     1,  1),
-    KEYWORD ("arcsin",          OP_ARCSIN,  1,  1),
-    KEYWORD ("arccos",          OP_ARCCOS,  1,  1),
-    KEYWORD ("arctg",           OP_ARCTG,   1,  1),
-    KEYWORD ("arcctg",          OP_ARCCTG,  1,  1),
-    KEYWORD ("sh",              OP_SH,      1,  1),
-    KEYWORD ("ch",              OP_CH,      1,  1),
-    KEYWORD ("th",              OP_TH,      1,  1),
-    KEYWORD ("cth",             OP_CTH,     1,  1),
+    KEYWORD ("uknown_keyword",  OP_UKNOWN,  0,  0, "uknoewn%e"          ),
+    KEYWORD ("+",               OP_ADD,     0,  0, "(%l \n\t+ %r)%e"    ),
+    KEYWORD ("-",               OP_SUB,     0,  0, "(%l \n\t- %r)%e"    ),
+    KEYWORD ("*",               OP_MUL,     0,  0, "%l \n\t \\cdot %r%e"),
+    KEYWORD ("/",               OP_DIV,     0,  0, "\\frac {%l}{%r}%e"  ),
+    KEYWORD ("^",               OP_POW,     0,  0, "{(%l)} ^ {%r}%e"    ),
+    KEYWORD ("log",             OP_LOG,     1,  2, "\\log_{%l} %r%e"    ),
+    KEYWORD ("ln",              OP_LN,      1,  1, "\\ln {%r}%e"        ),
+    KEYWORD ("sin",             OP_SIN,     1,  1, "\\sin (%r)%e"       ),
+    KEYWORD ("cos",             OP_COS,     1,  1, "\\cos (%r)%e"       ),
+    KEYWORD ("tg",              OP_TG,      1,  1, "\\tan (%r)%e"       ),
+    KEYWORD ("ctg",             OP_CTG,     1,  1, "\\ctan (%r)%e"      ),
+    KEYWORD ("arcsin",          OP_ARCSIN,  1,  1, "\\arcsin (%r)%e"    ),
+    KEYWORD ("arccos",          OP_ARCCOS,  1,  1, "\\arccos (%r)%e"    ),
+    KEYWORD ("arctg",           OP_ARCTG,   1,  1, "\\arctg (%r)%e"     ),
+    KEYWORD ("arcctg",          OP_ARCCTG,  1,  1, "\\arcctg (%r)%e"    ),
+    KEYWORD ("sh",              OP_SH,      1,  1, "\\sh (%r)%e"        ),
+    KEYWORD ("ch",              OP_CH,      1,  1, "\\ch (%r)%e"        ),
+    KEYWORD ("th",              OP_TH,      1,  1, "\\th (%r)%e"        ),
+    KEYWORD ("cth",             OP_CTH,     1,  1, "\\cth (%r)%e"       ),
 };
 const size_t kNumberOfKeywords = sizeof(keywords) / sizeof(keyword_t);
 
@@ -103,7 +107,7 @@ const char *GetTypeName             (type_t type);
 
 variable_t *FindVariableByIdx       (differentiator_t *diff, size_t idx);
 variable_t *FindVariableByName      (differentiator_t *diff, char *varName, size_t varNameLen);
-const keyword_t *FindKeywordByIdx   (keywordIdxes_t idx);
+const keyword_t *FindKeywordByIdx   (size_t idx);
 
 int CheckForReallocVariables        (differentiator_t *diff);
 int FindOrAddVariable               (differentiator_t *diff, char **curPos, size_t len, 

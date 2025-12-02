@@ -1,8 +1,9 @@
 program
-derivator
+differentiator
 tmp*
 a.out
 dump/*
 .vscode/*
 tree.txt
 solve.*
+plot.script

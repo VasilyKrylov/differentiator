@@ -13,11 +13,11 @@ const char ktreeSaveFileName[]       = "tree.txt";
 #define TREE_DO_AND_RETURN(action)          \
         do                                  \
         {                                   \
-            int status = action;            \
-            DEBUG_VAR("%d", status);        \
+            int statusMacro = action;       \
+            DEBUG_VAR("%d", statusMacro);   \
                                             \
-            if (status != TREE_OK)          \
-                return status;              \
+            if (statusMacro != TREE_OK)     \
+                return statusMacro;         \
         } while (0)                       
 
 #define TREE_DO_AND_CLEAR(action, clearAction)      \

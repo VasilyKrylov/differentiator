@@ -26,7 +26,6 @@ static bool NodeFindVariable            (node_t *node, variable_t *argument);
 static int AskUserAboutDifferentation   (differentiator_t *diff, size_t *diffTimes, 
                                          variable_t **var);
 
-
 // NOTE: diffNumber - how many times to differentiate, idk better naming
 int DifferentiatorCtor (differentiator_t *diff, size_t variablesCapacity)
 {
@@ -34,6 +33,9 @@ int DifferentiatorCtor (differentiator_t *diff, size_t variablesCapacity)
 
     TREE_DO_AND_RETURN (LogCtor (&diff->log));
     
+    diff->variablesCapacity = variablesCapacity;
+    diff->variablesSize     = 0;
+
     diff->variables = (variable_t *) calloc (variablesCapacity, sizeof (variable_t));
     if (diff->variables == NULL)
     {
@@ -44,8 +46,10 @@ int DifferentiatorCtor (differentiator_t *diff, size_t variablesCapacity)
                COMMON_ERROR_ALLOCATING_MEMORY;
     }
 
-    diff->variablesCapacity = variablesCapacity;
+    diff->diffTrees         = NULL;
     diff->diffTreesCnt      = 0;
+    diff->varToDiff         = NULL;
+    diff->buffer            = NULL;
 
     TREE_DO_AND_RETURN (TREE_CTOR (&diff->expression, &diff->log));
 
@@ -60,6 +64,8 @@ void DifferentiatorDtor (differentiator_t *diff)
 {
     assert (diff);
 
+    LogDtor (&diff->log);
+
     TreeDtor (&diff->expression);
 
     for (size_t i = 0; i < diff->diffTreesCnt; i++)
@@ -67,72 +73,21 @@ void DifferentiatorDtor (differentiator_t *diff)
         TreeDtor (&diff->diffTrees[i]);
     }
 
-    LogDtor (&diff->log);
-
     free (diff->variables);
     diff->variables = NULL;
     diff->variablesCapacity = 0;
     diff->variablesSize     = 0;
 
     free (diff->diffTrees);
-    diff->diffTrees = NULL;
-    diff->diffTreesCnt = 0;
+    diff->diffTrees         = NULL;
+    diff->diffTreesCnt      = 0;
+
+    diff->varToDiff         = NULL;
 
     free (diff->buffer);
     diff->buffer = NULL;
 }
 
-// int TreeSaveToFile (tree_t *tree, const char *fileName)
-// {
-//     FILE *outputFile = fopen (fileName, "w");
-//     if (outputFile == NULL)
-//     {
-//         ERROR_LOG ("Error opening file \"%s\"", fileName);
-        
-//         return TREE_ERROR_COMMON |
-//                COMMON_ERROR_OPENING_FILE;
-//     }
-
-//     int status = NodeSaveToFile (tree->root, outputFile);
-
-//     fclose (outputFile);
-
-//     return status;
-// }
-
-// int NodeSaveToFile (node_t *node, FILE *file)
-// {
-//     assert (node);
-//     assert (file);
-
-//     // NOTE: maybe add macro for printf to check it's return code
-//     if (node->type == TYPE_CONST_NUM)
-//     {
-//         fprintf (file, "(\"%g\"", node->value.number);
-//     }
-//     else if (node->type == TYPE_MATH_OPERATION)
-//     {
-//         // FIXME:
-//     }
-//     else if (node->type == TYPE_VARIABLE)
-//     {
-//         // FIXME:
-//     }
-
-//     if (node->left != NULL)
-//         NodeSaveToFile (node->left, file);
-//     else
-//         fprintf (file, "%s", "nil");
-
-//     if (node->right != NULL)
-//         NodeSaveToFile (node->right, file);
-//     else
-//         fprintf (file, "%s", "nil");
-
-//     fprintf (file, "%s", ")");
-
-//     return TREE_OK;
-// }
 
 const char *GetTypeName (type_t type)
 {
@@ -203,7 +158,7 @@ variable_t *FindVariableByIdx (differentiator_t *diff, size_t idx)
     return NULL;
 }
 
-const keyword_t *FindKeywordByIdx (keywordIdxes_t idx)
+const keyword_t *FindKeywordByIdx (size_t idx)
 {
     for (size_t i = 0; i < kNumberOfKeywords; i++)
     {
@@ -379,7 +334,7 @@ double NodeGetVariable (differentiator_t *diff, node_t *node)
     assert (diff);
     assert (node);
 
-    DEBUG_VAR ("%lu", node->value.idx);
+    // DEBUG_VAR ("%lu", node->value.idx);
 
     if (isnan (diff->variables[node->value.idx].value))
     {
@@ -419,7 +374,6 @@ void AskVariableValue (differentiator_t *diff, node_t *node)
         attempts++;
     }
 
-    // FIXME: delete values
     if (attempts >= 5)
     {
         diff->variables[idx].value = 0;
@@ -434,7 +388,7 @@ void AskVariableValue (differentiator_t *diff, node_t *node)
 // ============= SIMPLIFICATION =============
 
 #define NUM_(num)                                                               \
-        NodeCtorAndFill (tree, TYPE_CONST_NUM, {.number = num}, NULL, NULL);
+        NodeCtorAndFill (tree, TYPE_CONST_NUM, {.number = num}, NULL, NULL)
 
 void TreeSimplify (differentiator_t *diff, tree_t *tree)
 {
@@ -525,13 +479,17 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node, bool *modified)
     return newNode;
 }
 
+#define MUL_(left, right)                                                        \
+        NodeCtorAndFill (tree, TYPE_MATH_OPERATION, {.idx = OP_MUL},             \
+                         left, right)
+
 #define cL NodeCopy (node->left,    tree)
 #define cR NodeCopy (node->right,   tree)
 
 #define L left
 #define R right
 
-#define IS_VALUE_(childNode, numberValue)                       \
+#define IS_VALUE_(childNode, numberValue)                        \
         (node->childNode->type == TYPE_CONST_NUM &&              \
         IsEqual (node->childNode->value.number, numberValue))   
 
@@ -563,11 +521,10 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
 
         case OP_SUB:
             if (IS_VALUE_ (L, 0))
-                newNode = cR;
+                newNode = MUL_ (NUM_(-1), cR);
             else if (IS_VALUE_ (R, 0))
                 newNode = cL;
             break;
-
 
         case OP_MUL:
             if (IS_VALUE_ (L, 1))
@@ -605,6 +562,7 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
     return newNode;
 }
 
+#undef MUL_
 #undef cL
 #undef cR
 #undef L
@@ -613,8 +571,11 @@ node_t *NodeSimplifyTrivial (tree_t *tree, node_t *node, bool *modified)
 
 #undef NUM_
 
+// ============= DIFFERENTATION =============
+
 #include "dsl_define.h"
 
+// TODO: make new function
 int TreesDiff (differentiator_t *diff, tree_t *expression)
 {
     assert (diff);
@@ -646,11 +607,15 @@ int TreesDiff (differentiator_t *diff, tree_t *expression)
         TREE_DO_AND_RETURN (TREE_CTOR (&diff->diffTrees[i], &diff->log));
     }
 
-    DumpLatex (diff, expression->root, "Найдём производную следующей функции:");
+    DumpLatexFunction (diff, expression->root);
+
+    fprintf (diff->log.latexFile, "\\section*{Продифференцируем нашу функцию %lu раз(-а)}\n", diff->diffTreesCnt);
 
     for (size_t i = 0; i < diff->diffTreesCnt; i++)
     {
         DEBUG_VAR ("%lu", i);
+
+        fprintf (diff->log.latexFile, "\\subsection*{Найдём %lu-ую производную}\n", i + 1);
 
         tree_t *tree = &diff->diffTrees[i];
         if (i == 0)
@@ -661,17 +626,15 @@ int TreesDiff (differentiator_t *diff, tree_t *expression)
         if (tree->root == NULL)
             return TREE_ERROR_NULL_ROOT;
 
-        TREE_DUMP (diff, tree, "first devirative tree by '%s'", var->name);
+        TREE_DUMP (diff, tree, "devirative tree by '%s'", var->name);
 
         TreeSimplify (diff, tree);
         TREE_DUMP (diff, tree, "%s", "Simplified derivative tree");
 
-        DumpLatexBoxed (diff, tree->root, "ОТВЕТ (упрощённый): ");
+        DumpLatexAnswer (diff, tree->root, i + 1);
     }
 
     DEBUG_PRINT ("%s", "==========   END OF DIFFERENTATION   ==========\n\n");
-
-
 
     return TREE_OK;
 }
@@ -722,6 +685,8 @@ int AskUserAboutDifferentation (differentiator_t *diff, size_t *diffTimes, varia
                      (int)(*var)->len,
                      (*var)->name);
     }
+
+    diff->varToDiff = *var;
 
     free (varName);
 
@@ -801,16 +766,6 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
 
             return NULL;
 
-            // NOTE: does I need this ?
-            // or maybe do verificator specially for calc tree
-            // or add this to define CHECK
-
-            // if (!HasBothChildren (expression))
-            // {
-            //     ERROR_LOG ("Addition node [%p] doesn't have both children nodes", expression);
-                
-            //     return NULL;
-            // }
         case OP_ADD:
             return ADD_ (dL, dR);
         case OP_SUB:

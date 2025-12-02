@@ -6,9 +6,29 @@ struct tree_t;
 struct variable_t;
 struct differentiator_t;
 
+const char kLatexHeader[] = "\\documentclass{article}\n"
+                            "\\usepackage[utf8x]{inputenc}\n"
+                            "\\usepackage[english,russian]{babel}\n"
+                            "\\usepackage{amsmath}\n"
+                            "\\usepackage{graphicx}\n" // for png
+                            "\\usepackage{autobreak}\n"
+                            "\\allowdisplaybreaks\n"
+                            "\n"
+                            "\\newcommand{\\ctan}{\\mathrm{ctan}}"
+                            "\\newcommand{\\arcctan}{\\mathrm{arcctan}}"
+                            "\n"
+                            "\\title{Самая скучная домашка по матану}\n"
+                            "\\author{Крылов Василий, Б05-532}\n"
+                            "\n"
+                            "\\begin{document}\n"
+                            "\\maketitle\n"
+                            "\n";
+
 const char kParentDumpFolderName[] = "dump/";
 const char kImgFolderName[]        = "img/";
 const char kDotFolderName[]        = "dot/";
+const char kPlotFolderName[]       = "plot/";
+const char kPlotScriptFileName[]   = "plot/script.txt";
 const char kHtmlFileName[]         = "log.html";
 const char kLatexFileName[]        = "solve.tex";
 const char kGraphFileName[]        = "dot.txt";
@@ -18,11 +38,13 @@ const size_t kFileNameLen            = 64;
 
 struct treeLog_t
 {
-    char logFolderPath [kLogFolderPathLen] = {}; // dump/[date-time]
-    char imgFolderPath [kFileNameLen]      = {}; // dump/[date-time]/img
-    char dotFolderPath [kFileNameLen]      = {}; // dump/[date-time]/dot
-    char htmlFilePath  [kFileNameLen]      = {}; // dump/[date-time]/log.html
-    char latexFilePath [kFileNameLen]      = {}; // dump/[date-time]/solve.tex
+    char logFolderPath      [kLogFolderPathLen] = {}; // dump/[date-time]
+    char imgFolderPath      [kFileNameLen]      = {}; // dump/[date-time]/img/
+    char dotFolderPath      [kFileNameLen]      = {}; // dump/[date-time]/dot/
+    char plotFolderPath     [kFileNameLen]      = {}; // dump/[date-time]/plot/
+    char plotScriptFilePath [kFileNameLen]      = {}; // dump/[date-time]/plot/script.txt
+    char htmlFilePath       [kFileNameLen]      = {}; // dump/[date-time]/log.html
+    char latexFilePath      [kFileNameLen]      = {}; // dump/[date-time]/solve.tex
 
     FILE *htmlFile  = NULL;
     FILE *latexFile = NULL;
@@ -40,9 +62,12 @@ int NodeDump                    (differentiator_t *diff, node_t *node,
                                 __attribute__ ((format (printf, 6, 7)));
 int DumpLatexDifferentation     (differentiator_t *diff, node_t *expression, node_t *result, 
                                  variable_t *argument);
-int DumpLatex                   (differentiator_t *diff, node_t *node, const char *comment);
-int DumpLatexBoxed              (differentiator_t *diff, node_t *node, const char *comment);
+int DumpLatexFunction           (differentiator_t *diff, node_t *node);
+int DumpLatexAnswer             (differentiator_t *diff, node_t *node, size_t devirativeCount);
+int DumpLatexTaylor             (differentiator_t *diff);
 int DumpLatexNode               (differentiator_t *diff, node_t *node);
 int DumpLatexNodeMathOperation  (differentiator_t *diff, node_t *node);
+
+int DumpLatexAddImages          (differentiator_t *diff);
 
 #endif // K_TREE_LOG_H

@@ -7,6 +7,7 @@
 #include "tree.h"
 #include "tree_calc.h"
 #include "tree_log.h"
+#include "tree_plot.h"
 
 int main()
 {
@@ -20,6 +21,12 @@ int main()
     if (diff.variablesSize > 0)
     {
         TREE_DO_AND_CLEAR (TreesDiff (&diff, &diff.expression),
+                           DifferentiatorDtor (&diff));
+
+        TREE_DO_AND_CLEAR (DumpLatexTaylor (&diff),
+                           DifferentiatorDtor (&diff));
+
+        TREE_DO_AND_CLEAR (DumpLatexAddImages (&diff),
                            DifferentiatorDtor (&diff));
     }
 

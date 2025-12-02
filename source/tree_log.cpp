@@ -1,14 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <assert.h>
 #include <time.h>
 
+#include "tree_log.h"
+
 #include "tree.h"
 #include "tree_calc.h"
+#include "tree_plot.h"
 #include "utils.h"
-
-#include "tree_log.h"
 
 static size_t imageCounter = 0;
 
@@ -42,18 +44,23 @@ int LogCtor (treeLog_t *log)
               tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
               tm.tm_hour,        tm.tm_min,     tm.tm_sec);
 
-    snprintf (log->latexFilePath, kFileNameLen, "%s%s",
-              log->logFolderPath, kLatexFileName);
+    snprintf (log->latexFilePath,       kFileNameLen, "%s%s",
+              log->logFolderPath,       kLatexFileName);
 
-    snprintf (log->htmlFilePath,   kFileNameLen, "%s%s",
-              log->logFolderPath, kHtmlFileName);
+    snprintf (log->htmlFilePath,        kFileNameLen, "%s%s",
+              log->logFolderPath,       kHtmlFileName);
 
-    snprintf (log->imgFolderPath, kFileNameLen, "%s%s",
-              log->logFolderPath, kImgFolderName);
+    snprintf (log->plotScriptFilePath,  kFileNameLen, "%s%s",
+              log->logFolderPath,       kPlotScriptFileName);
 
-    snprintf (log->dotFolderPath, kFileNameLen, "%s%s",
-              log->logFolderPath, kDotFolderName);
+    snprintf (log->imgFolderPath,       kFileNameLen, "%s%s",
+              log->logFolderPath,       kImgFolderName);
 
+    snprintf (log->dotFolderPath,       kFileNameLen, "%s%s",
+              log->logFolderPath,       kDotFolderName);
+
+    snprintf (log->plotFolderPath,      kFileNameLen, "%s%s",
+              log->logFolderPath,       kPlotFolderName);
 
     if (SafeMkdir (kParentDumpFolderName) != TREE_OK)
         return TREE_ERROR_COMMON | 
@@ -68,6 +75,10 @@ int LogCtor (treeLog_t *log)
                COMMON_ERROR_CREATING_FILE;
 
     if (SafeMkdir (log->dotFolderPath) != TREE_OK)
+        return TREE_ERROR_COMMON | 
+               COMMON_ERROR_CREATING_FILE;
+
+    if (SafeMkdir (log->plotFolderPath) != TREE_OK)
         return TREE_ERROR_COMMON | 
                COMMON_ERROR_CREATING_FILE;
 
@@ -89,18 +100,7 @@ int LogCtor (treeLog_t *log)
         return TREE_ERROR_COMMON |
                COMMON_ERROR_OPENING_FILE;
     }
-    fprintf (log->latexFile, "%s",  "\\documentclass{article}\n"
-                                    "\\usepackage[utf8x]{inputenc}\n"
-                                    "\\usepackage[english,russian]{babel}\n"
-                                    "\\usepackage{amsmath}\n"
-                                    "\\usepackage{autobreak}\n"
-                                    "\\allowdisplaybreaks\n"
-                                    "\n"
-                                    "\\newcommand{\\ctan}{\\mathrm{ctan}}"
-                                    "\\newcommand{\\arcctan}{\\mathrm{arcctan}}"
-                                    "\n"
-                                    "\\begin{document}\n"
-                                    "\n");
+    fprintf (log->latexFile, "%s",  kLatexHeader);
 
     return TREE_OK;
 }
@@ -288,7 +288,7 @@ void TreePrefixPass (differentiator_t *diff, node_t *node, FILE *graphFile)
 
     DEBUG_VAR ("%lu", node->value.idx);
 
-    const keyword_t *keyword = FindKeywordByIdx ((keywordIdxes_t) node->value.idx);
+    const keyword_t *keyword = FindKeywordByIdx (node->value.idx);
 
     switch (node->type)
     {
@@ -380,12 +380,12 @@ int DumpMakeImg (node_t *node, treeLog_t *log)
     assert (log);
 
     char imgFileName[kFileNameLen] = {};
-    snprintf (imgFileName, kFileNameLen, "%lu.svg", imageCounter);
+    snprintf (imgFileName, kFileNameLen, "%lu.png", imageCounter);
 
     const size_t kMaxCommandLen = 256;
     char command[kMaxCommandLen] = {};
 
-    snprintf (command, kMaxCommandLen, "dot %s%lu.dot -T svg -o %s%s", 
+    snprintf (command, kMaxCommandLen, "dot %s%lu.dot -T png -o %s%s", 
               log->dotFolderPath, imageCounter,
               log->imgFolderPath, imgFileName);
 
@@ -431,14 +431,16 @@ int DumpLatexDifferentation (differentiator_t *diff, node_t *expression, node_t 
         "Любой образованный человек знает следующее:",
         "Элементарно, Ватсон:",
         "Это база:",
+        "Кокнуло:",
+        "Используем шустрые преобрзования:",
         "Чтобы сыграть психически больного и глубоко депрессивного человека, Хоакин Феникс решил это:",
     };
     fprintf (log->latexFile, "%s\\\\\n"
-                             "\\begin{align}\n"
+                             "\\begin{align*}\n"
                              "\\begin{autobreak}\n"
                              "\\MoveEqLeft\n"
                              "\t\\frac{d}{d%.*s}(",
-                             funny[rand() % 7],
+                             funny[rand() % 9],
                              (int) argument->len,
                              argument->name);
      
@@ -451,43 +453,53 @@ int DumpLatexDifferentation (differentiator_t *diff, node_t *expression, node_t 
 
     fprintf (log->latexFile, "\n"
                              "\\end{autobreak}\n"
-                             "\\end{align}\n");
+                             "\\end{align*}\n");
 
     return status;
 }
 
-int DumpLatex (differentiator_t *diff, node_t *node, const char *comment)
+int DumpLatexFunction (differentiator_t *diff, node_t *node)
 {
     assert (diff);
     assert (node);
 
-    treeLog_t *log = &diff->log;
+    FILE *latexFile = diff->log.latexFile;
 
-    fprintf (log->latexFile, "%s\n", comment);
+    fprintf (latexFile, "%s", "\\section*{Давайте пересчитаем кости этой каверзной формуле}\n");
 
-    fprintf (log->latexFile, "\\[\n"
-                             "\t");
+    fprintf (latexFile, "\\[\n"
+                        "\t f(%.*s",
+                        (int) diff->variables[0].len,
+                        diff->variables[0].name);
+    
+    for (size_t i = 1; i < diff->variablesSize; i++)
+    {
+        fprintf (latexFile, ", %.*s",
+                           (int) diff->variables[i].len,
+                           diff->variables[i].name);
+    }
+    fprintf (latexFile, "%s", ") = ");
 
     int status = DumpLatexNode (diff, node);
 
-    fprintf (log->latexFile, "\n\\]\n\n");
+    fprintf (latexFile, "\n\\]\n\n");
 
     return status;
 }
 
 // FIXME: fix boxed
-int DumpLatexBoxed (differentiator_t *diff, node_t *node, const char *comment)
+int DumpLatexAnswer (differentiator_t *diff, node_t *node, size_t devirativeCount)
 {
     assert (diff);
     assert (node);
 
     treeLog_t *log = &diff->log;
 
-    fprintf (log->latexFile, "%s\n", comment);
+    fprintf (log->latexFile, "\\subsection*{Ответ для %lu производной:}\n", devirativeCount);
 
     fprintf (log->latexFile,// "\\[\n"
                             //  "\t\\boxed {\n"
-                             "\\begin{align}\n"
+                             "\\begin{align*}\n"
                              "\\begin{autobreak}\n"
                              "\t");
 
@@ -495,9 +507,49 @@ int DumpLatexBoxed (differentiator_t *diff, node_t *node, const char *comment)
 
     fprintf (log->latexFile, "\n"
                              "\\end{autobreak}\n"
-                             "\\end{align}\n");
+                             "\\end{align*}\n");
 
     return status;
+}
+
+int DumpLatexTaylor (differentiator_t *diff)
+{
+    assert (diff);
+
+    FILE *latexFile = diff->log.latexFile;
+
+    fprintf (latexFile, "\\section*{Разложение по Тейлору} \\\n");
+
+    fprintf (latexFile, "\\begin{align*}\n"
+                        "\\begin{autobreak}\n"
+                        "\t");
+
+    fprintf (latexFile, "f (%.*s) = %g \n\t", 
+                        (int) diff->varToDiff->len,
+                        diff->varToDiff->name,
+                        NodeCalculate (diff, diff->expression.root));
+
+    for (size_t i = 0; i < diff->diffTreesCnt; i++)
+    {
+        fprintf (latexFile, 
+                 "+ \\frac{%g}{%lu!} \\cdot (%.*s - %g) ^ %lu\n\t",
+                 NodeCalculate (diff, diff->diffTrees[i].root),
+                 i + 1, 
+                 (int)diff->varToDiff->len, diff->varToDiff->name,
+                 diff->varToDiff->value,
+                 i + 1);
+    }
+
+    fprintf (latexFile, "+ o(%.*s - %g) ^ %lu", 
+                        (int) diff->varToDiff->len, diff->varToDiff->name,
+                        diff->varToDiff->value,
+                        diff->diffTreesCnt);
+    
+    fprintf (latexFile, "\n"
+                        "\\end{autobreak}\n"
+                        "\\end{align*}\n");
+
+    return TREE_OK;
 }
 
 int DumpLatexNode (differentiator_t *diff, node_t *node) 
@@ -547,133 +599,192 @@ int DumpLatexNodeMathOperation (differentiator_t *diff, node_t *node)
     assert (diff);
     assert (node);
 
-    treeLog_t *log = &diff->log;
+    FILE *latexFile = diff->log.latexFile;
 
-    switch (node->value.idx)
+    const keyword_t *keyword = FindKeywordByIdx (node->value.idx);
+    if (keyword == NULL)
     {
-        case OP_ADD:
-            fprintf (log->latexFile, "%s", "(");
-            DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "\n"
-                                           "\t+");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")");
-            break;
+        ERROR_LOG ("%s", "Uknown operation");
 
-        case OP_SUB:
-            fprintf (log->latexFile, "%s", "(");
-            DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "-");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")");
-            break;
+        return TREE_ERROR_INVALID_NODE;
+    }
+    const char *latexFormat = keyword->latexFormat;
 
-        case OP_MUL:
-            DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "\n"
-                                           "\\times ");
-            DumpLatexNode (diff, node->right);
-            break;
+    while (true)
+    {
+        const char *specificator = strchr (latexFormat, '%');
+        const char *argument = specificator + 1;
 
-        case OP_DIV:
-            fprintf (log->latexFile, "%s", "\\frac{");
-            DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "}{");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", "}");
-            break;
+        DEBUG_STR (specificator);
+        DEBUG_STR (argument);
 
-        case OP_POW:
-            fprintf (log->latexFile, "%s", "{(");
-            DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", ")}^{");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", "}");
-            break;
+        fprintf (latexFile, "%.*s", int(specificator - latexFormat), latexFormat);
 
-        case OP_LOG:
-            fprintf (log->latexFile, "%s", "\\log_{");
-            DumpLatexNode (diff, node->left);
-            fprintf (log->latexFile, "%s", "} ");
-            DumpLatexNode (diff, node->right);
-            break;
+        if (*argument == 'l') DumpLatexNode (diff, node->left);
+        if (*argument == 'r') DumpLatexNode (diff, node->right);
+        if (*argument == 'e') break;
 
-        case OP_LN:
-            fprintf (log->latexFile, "%s", "\\ln {");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", "}");
-            break;
+        latexFormat = argument + 1;
+    }
 
-        case OP_SIN:
-            fprintf (log->latexFile, "%s", "\\sin(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")");
-            break;
+    return TREE_OK;
+    
+    // switch (node->value.idx)
+    // {
+    //     case OP_ADD:
+    //         fprintf (latexFile, "%s", "(");
+    //         DumpLatexNode (diff, node->left);
+    //         fprintf (latexFile, "%s", "\n"
+    //                                        "\t+");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")");
+    //         break;
 
-        case OP_COS:
-            fprintf (log->latexFile, "%s", "\\cos(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")");
-            break;
+    //     case OP_SUB:
+    //         fprintf (latexFile, "%s", "(");
+    //         DumpLatexNode (diff, node->left);
+    //         fprintf (latexFile, "%s", "-");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")");
+    //         break;
 
-        case OP_TG:
-            fprintf (log->latexFile, "%s", "\\tan{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
+    //     case OP_MUL:
+    //         DumpLatexNode (diff, node->left);
+    //         fprintf (latexFile, "%s", "\n"
+    //                                        "\t\\cdot ");
+    //         DumpLatexNode (diff, node->right);
+    //         break;
 
-        case OP_CTG:
-            fprintf (log->latexFile, "%s", "\\ctan{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
+    //     case OP_DIV:
+    //         fprintf (latexFile, "%s", "\\frac{");
+    //         DumpLatexNode (diff, node->left);
+    //         fprintf (latexFile, "%s", "}{");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", "}");
+    //         break;
 
-        case OP_ARCSIN:
-            fprintf (log->latexFile, "%s", "\\arcsin{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
-        case OP_ARCCOS:
-            fprintf (log->latexFile, "%s", "\\arccos{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
+    //     case OP_POW:
+    //         fprintf (latexFile, "%s", "{(");
+    //         DumpLatexNode (diff, node->left);
+    //         fprintf (latexFile, "%s", ")}^{");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", "}");
+    //         break;
 
-        case OP_ARCTG:
-            fprintf (log->latexFile, "%s", "\\arctg{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
-        case OP_ARCCTG:
-            fprintf (log->latexFile, "%s", "\\arcctg{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
+    //     case OP_LOG:
+    //         fprintf (latexFile, "%s", "\\log_{");
+    //         DumpLatexNode (diff, node->left);
+    //         fprintf (latexFile, "%s", "} ");
+    //         DumpLatexNode (diff, node->right);
+    //         break;
 
-        case OP_SH:
-            fprintf (log->latexFile, "%s", "\\sh{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
-        case OP_CH:
-            fprintf (log->latexFile, "%s", "\\ch{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
-        case OP_TH:
-            fprintf (log->latexFile, "%s", "\\th{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
-        case OP_CTH:
-            fprintf (log->latexFile, "%s", "\\cth{(");
-            DumpLatexNode (diff, node->right);
-            fprintf (log->latexFile, "%s", ")}");
-            break;
+    //     case OP_LN:
+    //         fprintf (latexFile, "%s", "\\ln {");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", "}");
+    //         break;
+
+    //     case OP_SIN:
+    //         fprintf (latexFile, "%s", "\\sin(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")");
+    //         break;
+
+    //     case OP_COS:
+    //         fprintf (latexFile, "%s", "\\cos(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")");
+    //         break;
+
+    //     case OP_TG:
+    //         fprintf (latexFile, "%s", "\\tan{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+
+    //     case OP_CTG:
+    //         fprintf (latexFile, "%s", "\\ctan{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+
+    //     case OP_ARCSIN:
+    //         fprintf (latexFile, "%s", "\\arcsin{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+    //     case OP_ARCCOS:
+    //         fprintf (latexFile, "%s", "\\arccos{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+
+    //     case OP_ARCTG:
+    //         fprintf (latexFile, "%s", "\\arctg{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+    //     case OP_ARCCTG:
+    //         fprintf (latexFile, "%s", "\\arcctg{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+
+    //     case OP_SH:
+    //         fprintf (latexFile, "%s", "\\sh{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+    //     case OP_CH:
+    //         fprintf (latexFile, "%s", "\\ch{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+    //     case OP_TH:
+    //         fprintf (latexFile, "%s", "\\th{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
+    //     case OP_CTH:
+    //         fprintf (latexFile, "%s", "\\cth{(");
+    //         DumpLatexNode (diff, node->right);
+    //         fprintf (latexFile, "%s", ")}");
+    //         break;
         
-        default:
-            ERROR_LOG ("%s", "Uknown operation");
-            return TREE_ERROR_INVALID_NODE;
+    //     default:
+    //         ERROR_LOG ("%s", "Uknown operation");
+    //         return TREE_ERROR_INVALID_NODE;
+    // }
+
+    return TREE_OK;
+}
+
+int DumpLatexAddImages (differentiator_t *diff)
+{
+    assert (diff);
+
+    TREE_DO_AND_RETURN (TreeCreatePlotImages (diff));
+
+    FILE *latexFile = diff->log.latexFile;
+
+    fprintf (latexFile, "%s", "\\section*{Посмотрим теперь на интересные(или не очень) картиночки:} \\\\\n");
+
+    const char kImageLatex[] = "\\begin{center}\n"
+                               "\t\\includegraphics[width=13cm]{%s%lu.png}\n"
+                               "\\end{center}\n\n";
+
+    // FIXME: yes, magic number
+    // 0 comes from tree_plot.cpp
+    // If i will change naming, this will be problem
+
+    fprintf (latexFile, "%s", "\\subsection*{Исходная функция:} \n");
+    fprintf (latexFile, kImageLatex, diff->log.plotFolderPath, (size_t)0);
+
+    for (size_t i = 0; i < diff->diffTreesCnt; i++)
+    {
+        fprintf (latexFile, "\\subsection*{График %lu производной:} \n", i + 1);
+        
+        fprintf (latexFile, kImageLatex, diff->log.plotFolderPath, i + 1);
     }
 
     return TREE_OK;

@@ -34,6 +34,7 @@ enum commonErrors
     COMMON_ERROR_WRITE_TO_FILE          = 1 << 6,
     COMMON_ERROR_CREATING_FILE          = 1 << 7,
     COMMON_ERROR_WRONG_USER_INPUT       = 1 << 8,
+    COMMON_ERROR_SNPRINTF               = 1 << 9,
     COMMON_ERROR_RUNNING_SYSTEM_COMMAND = 1 << 10 // TODO: add text messages
 };
 
