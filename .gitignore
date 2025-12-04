@@ -7,3 +7,4 @@ dump/*
 tree.txt
 solve.*
 plot.script
+calc_infix.cpp
