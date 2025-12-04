@@ -5,6 +5,8 @@
 #undef dL
 #undef dR
 
+#undef MATH_OP_
+
 #undef NUM_
 #undef ADD_
 #undef SUB_

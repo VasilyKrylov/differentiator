@@ -13,20 +13,18 @@
 
 static double NodeCalculateDoMath       (node_t *node, double leftVal, double rightVal);
 static double NodeGetVariable           (differentiator_t *diff, node_t *node);
-static void AskVariableValue            (differentiator_t *diff, node_t *node);
+static void   AskVariableValue          (differentiator_t *diff, node_t *node);
 
 static node_t *NodeSimplifyCalc         (tree_t *tree, node_t *node, bool *modified);
 static node_t *NodeSimplifyTrivial      (tree_t *tree, node_t *node, bool *modified);
 
 static node_t *NodeDiffMathOperation    (differentiator_t *diff,node_t *expression, 
-                                         tree_t *resTree, variable_t *argument);
-static node_t *NodeDiffVariable         (node_t *expression, tree_t *resTree, 
+                                         tree_t *tree, variable_t *argument);
+static node_t *NodeDiffVariable         (node_t *expression, tree_t *tree, 
                                          variable_t *argument);
-static bool NodeFindVariable            (node_t *node, variable_t *argument);
-static int AskUserAboutDifferentation   (differentiator_t *diff, size_t *diffTimes, 
+static int  AskUserAboutDifferentation  (differentiator_t *diff, size_t *diffTimes, 
                                          variable_t **var);
 
-// NOTE: diffNumber - how many times to differentiate, idk better naming
 int DifferentiatorCtor (differentiator_t *diff, size_t variablesCapacity)
 {
     assert (diff);
@@ -67,6 +65,7 @@ void DifferentiatorDtor (differentiator_t *diff)
     LogDtor (&diff->log);
 
     TreeDtor (&diff->expression);
+    TreeDtor (&diff->taylor);
 
     for (size_t i = 0; i < diff->diffTreesCnt; i++)
     {
@@ -134,12 +133,10 @@ variable_t *FindVariableByName (differentiator_t *diff, char *varName, size_t va
                    (int)diff->variables[i].len,
                    diff->variables[i].name);
         
-        int res = 12;
-        if ((res = strncmp (diff->variables[i].name, varName, varNameLen)) == 0)
+        if (strncmp (diff->variables[i].name, varName, varNameLen) == 0)
         {
             return &diff->variables[i];
         }
-        DEBUG_VAR ("%d", res);
     }
 
     return NULL;
@@ -180,7 +177,6 @@ int FindOrAddVariable (differentiator_t *diff, char **curPos,
 
     *type = TYPE_VARIABLE;
     char *varName = *curPos;
-    // (*curPos)[len] = '\0'; // TODO: this can crash something
 
     variable_t *variable = FindVariableByName (diff, varName, len);
 
@@ -219,26 +215,25 @@ int CheckForReallocVariables (differentiator_t *diff)
 {
     assert (diff);
 
-    if (diff->variablesSize >= diff->variablesCapacity)
+    if (diff->variablesSize < diff->variablesCapacity)
+        return TREE_OK;
+
+    if (diff->variablesCapacity == 0) 
+        diff->variablesCapacity = 1;
+
+    diff->variablesCapacity *= 2;
+
+    variable_t *newVariables = (variable_t *) realloc (diff->variables, 
+                                                        diff->variablesCapacity * sizeof (variable_t));
+    if (newVariables == NULL)
     {
-        if (diff->variablesCapacity == 0) 
-            diff->variablesCapacity = 1;
+        ERROR_LOG ("Error reallocating memory for diff->variables - %s", strerror (errno));
 
-        diff->variablesCapacity *= 2;
-
-        variable_t *newVariables = (variable_t *) realloc (diff->variables, 
-                                                           diff->variablesCapacity * sizeof (variable_t));
-        if (newVariables == NULL)
-        {
-            ERROR_LOG ("Error reallocating memory for diff->variables - %s", strerror (errno));
-
-            return TREE_ERROR_COMMON |
-                   COMMON_ERROR_ALLOCATING_MEMORY;
-        }
-
-        diff->variables = newVariables;
-
+        return TREE_ERROR_COMMON |
+                COMMON_ERROR_ALLOCATING_MEMORY;
     }
+
+    diff->variables = newVariables;
 
     return TREE_OK;
 }
@@ -320,7 +315,7 @@ double NodeCalculateDoMath (node_t *node, double leftVal, double rightVal)
         case OP_TH:     return tanh (rightVal);
         case OP_CTH:    return 1 / tanh (rightVal);
         
-        case OP_UKNOWN: 
+        case OP_UNKNOWN: 
             ERROR_LOG ("%s", "Uknown math operation in node"); 
             return NAN;
         
@@ -356,12 +351,10 @@ void AskVariableValue (differentiator_t *diff, node_t *node)
     int status   = 0;
     int attempts = 0;
 
-    while (attempts < 5 && status != 1)
+    while (attempts < 5 && status != 1) // TODO const for attempts
     {
         if (attempts >= 1)
-        {
             ERROR_PRINT ("%s", "This is not a float point number. Please, try again");
-        }
 
         PRINT ("Input value of variable '%.*s'\n"
                " > ",
@@ -397,6 +390,7 @@ void TreeSimplify (differentiator_t *diff, tree_t *tree)
 
     bool modifiedFirst = true;
     bool modifiedSecond = true;
+
     while (modifiedFirst || modifiedSecond)
     {
         modifiedFirst  = false;
@@ -438,7 +432,7 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node, bool *modified)
     if (node->right->type == TYPE_CONST_NUM && 
         (node->left == NULL || node->left->type  == TYPE_CONST_NUM))
     {
-        switch (node->value.idx)
+        switch (node->value.idx) // FIXME use previos function
         {
             case OP_ADD:    newNode = NUM_ (leftVal + rightVal);                    break;
             case OP_SUB:    newNode = NUM_ (leftVal - rightVal);                    break;
@@ -460,7 +454,7 @@ node_t *NodeSimplifyCalc (tree_t *tree, node_t *node, bool *modified)
             case OP_TH:     newNode = NUM_ (tanh (rightVal));                       break;
             case OP_CTH:    newNode = NUM_ (1 / tanh (rightVal));                   break;
             
-            case OP_UKNOWN: 
+            case OP_UNKNOWN: 
                 ERROR_LOG ("%s", "Uknown math operation in node"); 
                 return NULL;
             
@@ -693,15 +687,17 @@ int AskUserAboutDifferentation (differentiator_t *diff, size_t *diffTimes, varia
     return TREE_OK;
 }
 
-node_t *NodeDiff (differentiator_t *diff, node_t *expression, tree_t *resTree,
+node_t *NodeDiff (differentiator_t *diff, node_t *expression, tree_t *tree,
                   variable_t *argument)
 {
     assert (diff);
-    assert (resTree);
+    assert (tree);
     assert (expression);
     assert (argument);
 
     DEBUG_VAR ("%p", expression);
+
+    DumpLatexDifferentation (diff, expression, argument);
 
     node_t *resNode = NULL;
 
@@ -718,50 +714,44 @@ node_t *NodeDiff (differentiator_t *diff, node_t *expression, tree_t *resTree,
             break;
             
         case TYPE_VARIABLE:
-            resNode = NodeDiffVariable (expression, resTree, argument);
+            resNode = NodeDiffVariable (expression, tree, argument);
             break;
         
         case TYPE_MATH_OPERATION:
-            resNode = NodeDiffMathOperation (diff, expression, resTree, argument);
+            resNode = NodeDiffMathOperation (diff, expression, tree, argument);
             break;
 
         default:
             assert (0 && "This should never happen");
     }
 
-    DumpLatexDifferentation (diff, expression, resNode, argument);
-
     return resNode;
 }
 
-node_t *NodeDiffVariable (node_t *expression, tree_t *resTree, variable_t *argument)
+node_t *NodeDiffVariable (node_t *expression, tree_t *tree, variable_t *argument)
 {
     assert (expression);
-    assert (resTree);
+    assert (tree);
 
     DEBUG_VAR ("%lu", expression->value.idx);
     DEBUG_VAR ("%s", argument->name);
 
     if (argument->idx != (size_t) expression->value.idx)
-    {
         return NUM_ (0);
-    }
-    else 
-    {
-        return NUM_ (1);
-    }
+
+    return NUM_ (1);
 }
 
-node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_t *resTree, variable_t *argument)
+node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_t *tree, variable_t *argument)
 {
     assert (diff);
     assert (expression);
-    assert (resTree);
+    assert (tree);
     assert (argument);
 
     switch (expression->value.idx)
     {
-        case OP_UKNOWN:
+        case OP_UNKNOWN:
             ERROR_LOG ("%s", "Uknown math operation");
 
             return NULL;
@@ -772,11 +762,11 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
             return SUB_ (dL, dR);
         case OP_MUL:
             return ADD_ (MUL_ (dL, cR), 
-                             MUL_ (cL, dR));
+                         MUL_ (cL, dR));
         case OP_DIV:
             return DIV_ (SUB_ (MUL_ (dL, cR), 
-                                       MUL_ (cL, dR)), 
-                             MUL_ (cR, cR));
+                               MUL_ (cL, dR)), 
+                         POW_ (cR, NUM_ (2)));
 
         case OP_POW:
         {
@@ -785,11 +775,11 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
 
             if (xInBase && xInDegree)
                 return MUL_ (cN,
-                             ADD_ (MUL_ (dL,
-                                         LN_ (cR)),
-                                   MUL_ (cL,
-                                         DIV_ (dR,
-                                               cR))));
+                             ADD_ (MUL_ (dR,
+                                         LN_ (cL)),
+                                   MUL_ (cR,
+                                         DIV_ (dL,
+                                               cL))));
             
             if (xInBase && !xInDegree)
                 return MUL_ (MUL_ (cR,
@@ -809,8 +799,31 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
 
         // FIXME: check all cases
         case OP_LOG:
-            return DIV_ (dR,
-                        MUL_ (cR, LN_ (cL)));
+        {
+            bool xInBase      = NodeFindVariable (expression->left, argument);
+            bool xInArgument  = NodeFindVariable (expression->right, argument);
+
+            if (!xInBase && xInArgument)
+                return DIV_ (dR,
+                             MUL_ (cR, LN_ (cL)));
+            
+            if (!xInBase && !xInArgument)
+                return NUM_ (0);
+
+            return DIV_ (SUB_ (MUL_ (DIV_ (dR, cR),
+                                     LN_ (cL)),
+                               MUL_ (DIV_ (dL, cL),
+                                     LN_ (cR))),
+                         POW_ (LN_ (cL),
+                               NUM_ (2)));
+
+            // return DIV_ (MUL_ (MUL_ (NUM_(2),
+            //                          LN_ (cR)),
+            //                    DIV_ (NUM_ (1),
+            //                          cR)),
+            //              POW_ (NUM_ (2),
+            //                    LN_ (cR)));
+        }
 
         case OP_LN:
             return DIV_ (dR,
@@ -821,8 +834,8 @@ node_t *NodeDiffMathOperation (differentiator_t *diff, node_t *expression, tree_
                          dR);
         case OP_COS:
             return MUL_ (NUM_ (-1),
-                             MUL_ (SIN_ (cR),
-                                       dR));
+                         MUL_ (SIN_ (cR),
+                               dR));
 
         case OP_TG:
             return DIV_ (NUM_ (1),

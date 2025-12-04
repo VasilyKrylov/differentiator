@@ -57,10 +57,7 @@ enum commonErrors
                 DEBUG_LOG ("%s = \"%s\"", #name, name);         \
             } while(0)
 
-    #define DEBUG_CHR(name)                                     \
-            do {                                                \
-                DEBUG_LOG ("%s = '%c'", #name, name);           \
-            } while(0)
+    #define DEBUG_CHR(name) DEBUG_LOG ("%s = '%c'", #name, name) // TODO
 
     #define DEBUG_PTR(name)                                     \
             do {                                                \
@@ -69,9 +66,11 @@ enum commonErrors
 
     #define DEBUG_VAR(format, name)                             \
             do {                                                \
-                DEBUG_LOG ("%s = " format, #name, name);    \
+                DEBUG_LOG ("%s = " format, #name, name);        \
             } while (0)
+
     #define ON_DEBUG(...) __VA_ARGS__
+
     #define ON_RELEASE(...)
 #else
     #define DEBUG_LOG(format, ...)
@@ -84,15 +83,22 @@ enum commonErrors
     #define ON_RELEASE(...) __VA_ARGS__
 #endif // PRINT_DEBUG
 
-#define PRINT(format, ...)                                                              \
+#define PRINT(format, ...)                                                                      \
         printf (GREEN_BOLD_COLOR format COLOR_END, ##__VA_ARGS__)
-#define ERROR_LOG(format, ...)                                                          \
-        fprintf (stderr, RED_BOLD_COLOR "[ERROR] %s:%d:%s(): " format "\n" COLOR_END,   \
-                 __FILE__, __LINE__, __func__, __VA_ARGS__)                             \
-        ON_DEBUG (; getchar())
-#define ERROR_PRINT(format, ...)                                                        \
-        fprintf (stderr, RED_BOLD_COLOR format "\n" COLOR_END, __VA_ARGS__)             \
-        ON_DEBUG (; getchar())
+
+#define ERROR_LOG(format, ...)                                                                  \
+        do {                                                                                    \
+                fprintf (stderr, RED_BOLD_COLOR "[ERROR] %s:%d:%s(): " format "\n" COLOR_END,   \
+                         __FILE__, __LINE__, __func__, __VA_ARGS__);                            \
+                ON_DEBUG (getchar();)                                                           \
+        } while (0)
+
+#define ERROR_PRINT(format, ...)                                                                \
+        do {                                                                                    \
+            fprintf (stderr, RED_BOLD_COLOR format "\n" COLOR_END, __VA_ARGS__);                \
+            ON_DEBUG (getchar();)                                                               \
+        } while (0)
+        
 
 void PrintCommonError (int error);
 

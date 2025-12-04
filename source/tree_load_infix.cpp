@@ -63,23 +63,23 @@ Variable    ::= ['a'-'z', 'A'-'Z', '_']['a'-'z', 'A'-'Z', '0'-'9', '_']*
         }
         
 static int GetGramma            (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 static int GetExpression        (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 static int GetTerm              (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 static int GetPower             (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 static int GetPrimaryExpression (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 static int GetVariable          (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 
 static int GetFunction          (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 static int GetVariableName      (char **curPos);
 static int GetNumber            (differentiator_t *diff, char **curPos, 
-                                 tree_t *resTree, node_t **node);
+                                 tree_t *tree, node_t **node);
 
 int TreeLoadInfixFromFile (differentiator_t *diff, tree_t *tree,
                            const char *fileName, char **buffer, size_t *bufferLen)
@@ -123,15 +123,15 @@ int TreeLoadInfixFromFile (differentiator_t *diff, tree_t *tree,
     return TREE_OK;
 }
 
-int GetGramma (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **node)
+int GetGramma (differentiator_t *diff, char **curPos, tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
-    int status = GetExpression (diff, curPos, resTree, node);
+    int status = GetExpression (diff, curPos, tree, node);
 
     NODE_DUMP (diff, *node, "Created new node. curPos = \'%s\'", *curPos);
 
@@ -148,17 +148,17 @@ int GetGramma (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **
 
 #include "dsl_define.h"
 
-int GetExpression (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **node)
+int GetExpression (differentiator_t *diff, char **curPos, tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
     DEBUG_STR (*curPos);
 
-    int status = GetTerm (diff, curPos, resTree, node);
+    int status = GetTerm (diff, curPos, tree, node);
     if (status != TREE_OK)
         SYNTAX_ERROR;
 
@@ -171,7 +171,7 @@ int GetExpression (differentiator_t *diff, char **curPos, tree_t *resTree, node_
         *curPos = SkipSpaces (*curPos);
 
         node_t *node2 = {};
-        status = GetTerm (diff, curPos, resTree, &node2);
+        status = GetTerm (diff, curPos, tree, &node2);
         if (status != TREE_OK)
             SYNTAX_ERROR;
 
@@ -189,15 +189,15 @@ int GetExpression (differentiator_t *diff, char **curPos, tree_t *resTree, node_
     return TREE_OK;
 }
 
-int GetTerm (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **node)
+int GetTerm (differentiator_t *diff, char **curPos, tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
-    int status = GetPower (diff, curPos, resTree, node);
+    int status = GetPower (diff, curPos, tree, node);
     if (status != TREE_OK)
         SYNTAX_ERROR;
 
@@ -210,7 +210,7 @@ int GetTerm (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **no
         *curPos = SkipSpaces (*curPos);
 
         node_t *node2 = {};
-        status = GetPower (diff, curPos, resTree, &node2);
+        status = GetPower (diff, curPos, tree, &node2);
         if (status != TREE_OK)
             SYNTAX_ERROR;
 
@@ -233,15 +233,15 @@ int GetTerm (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **no
 }
 
 int GetPower (differentiator_t *diff, char **curPos, 
-              tree_t *resTree, node_t **node)
+              tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
-    int status = GetPrimaryExpression (diff, curPos, resTree, node);
+    int status = GetPrimaryExpression (diff, curPos, tree, node);
     if (status != TREE_OK)
         SYNTAX_ERROR;
 
@@ -252,7 +252,7 @@ int GetPower (differentiator_t *diff, char **curPos,
         *curPos = SkipSpaces (*curPos);
 
         node_t *node2 = {};
-        status = GetPrimaryExpression (diff, curPos, resTree, &node2);
+        status = GetPrimaryExpression (diff, curPos, tree, &node2);
         if (status != TREE_OK)
             SYNTAX_ERROR;
 
@@ -263,12 +263,12 @@ int GetPower (differentiator_t *diff, char **curPos,
 }
 
 int GetPrimaryExpression (differentiator_t *diff, char **curPos, 
-                          tree_t *resTree, node_t **node)
+                          tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
     DEBUG_STR (*curPos);
@@ -279,7 +279,7 @@ int GetPrimaryExpression (differentiator_t *diff, char **curPos,
     {
         (*curPos)++;
         
-        int status = GetExpression (diff, curPos, resTree, node);
+        int status = GetExpression (diff, curPos, tree, node);
         if (status != TREE_OK)
             SYNTAX_ERROR;
 
@@ -293,7 +293,7 @@ int GetPrimaryExpression (differentiator_t *diff, char **curPos,
         return status;
     }
 
-    int status = GetNumber (diff, curPos, resTree, node);
+    int status = GetNumber (diff, curPos, tree, node);
     if (status == TREE_OK)
     {
         *curPos = SkipSpaces (*curPos);
@@ -301,7 +301,7 @@ int GetPrimaryExpression (differentiator_t *diff, char **curPos,
         return status;
     }
 
-    status = GetFunction (diff, curPos, resTree, node);
+    status = GetFunction (diff, curPos, tree, node);
     if (status == TREE_OK)
     {
         *curPos = SkipSpaces (*curPos);
@@ -309,7 +309,7 @@ int GetPrimaryExpression (differentiator_t *diff, char **curPos,
         return status;
     }
     
-    status = GetVariable (diff, curPos, resTree, node);
+    status = GetVariable (diff, curPos, tree, node);
     DEBUG_LOG ("GetVariable() status = %d", status);
     if (status == TREE_OK)
     {
@@ -323,12 +323,12 @@ int GetPrimaryExpression (differentiator_t *diff, char **curPos,
     SYNTAX_ERROR;
 }
 
-int GetNumber (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **node)
+int GetNumber (differentiator_t *diff, char **curPos, tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
     double val = NAN;
@@ -350,12 +350,12 @@ int GetNumber (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **
     return TREE_OK;
 }
 
-int GetFunction (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **node)
+int GetFunction (differentiator_t *diff, char **curPos, tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
     DEBUG_STR (*curPos);
@@ -367,7 +367,7 @@ int GetFunction (differentiator_t *diff, char **curPos, tree_t *resTree, node_t 
         if (strncmp (*curPos, keywords[i].name, keywords[i].nameLen) == 0 &&
             keywords[i].isFunction)
         {
-            *node = NodeCtorAndFill (resTree, 
+            *node = NodeCtorAndFill (tree, 
                                      TYPE_MATH_OPERATION, 
                                      {.idx = (size_t) keywords[i].idx}, 
                                      NULL, NULL);
@@ -407,7 +407,7 @@ int GetFunction (differentiator_t *diff, char **curPos, tree_t *resTree, node_t 
     (*curPos)++;
 
     node_t *firstArg = {};
-    int status = GetExpression (diff, curPos, resTree, &firstArg);
+    int status = GetExpression (diff, curPos, tree, &firstArg);
     if (status != TREE_OK)
         SYNTAX_ERROR;
 
@@ -432,7 +432,7 @@ int GetFunction (differentiator_t *diff, char **curPos, tree_t *resTree, node_t 
     DEBUG_LOG ("*curPos = \"%s\" (after ',') ", *curPos);
 
     node_t *secondArg = {};
-    status = GetExpression (diff, curPos, resTree, &secondArg);
+    status = GetExpression (diff, curPos, tree, &secondArg);
     if (status != TREE_OK)
         SYNTAX_ERROR;
 
@@ -448,12 +448,12 @@ int GetFunction (differentiator_t *diff, char **curPos, tree_t *resTree, node_t 
     return TREE_OK;
 }
 
-int GetVariable (differentiator_t *diff, char **curPos, tree_t *resTree, node_t **node)
+int GetVariable (differentiator_t *diff, char **curPos, tree_t *tree, node_t **node)
 {
     assert (diff);
     assert (curPos);
     assert (*curPos);
-    assert (resTree);
+    assert (tree);
     assert (node);
 
     DEBUG_VAR ("%s", *curPos);
@@ -481,7 +481,7 @@ int GetVariable (differentiator_t *diff, char **curPos, tree_t *resTree, node_t 
     if (status != TREE_OK)
         return status;
 
-    *node = NodeCtorAndFill (resTree, type, value, NULL, NULL);
+    *node = NodeCtorAndFill (tree, type, value, NULL, NULL);
 
     DEBUG_LOG ("(after adding variable) *curPos = \"%s\"", *curPos);
 

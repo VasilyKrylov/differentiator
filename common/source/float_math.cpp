@@ -3,7 +3,7 @@
 
 #include "float_math.h"
 
-static const double EPS = 1.11e-16; // https://en.wikipedia.org/wiki/Machine_epsilon
+static const double EPS = 1.11e-16; // https://en.wikipedia.org/wiki/Machine_epsilon // FIXME
 
 bool IsEqual(double a, double b) 
 {

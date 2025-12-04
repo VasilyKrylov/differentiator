@@ -5,10 +5,11 @@
 
 #include "tree.h"
 
-// : size_t because of size_t idx in variable_t
-enum keywordIdxes_t : size_t
+typedef size_t variable_idx_t; // TODO think
+
+enum keywordIdxes_t : variable_idx_t
 {
-    OP_UKNOWN,
+    OP_UNKNOWN,
     OP_ADD,
     OP_SUB,
     OP_MUL,
@@ -35,7 +36,7 @@ struct variable_t
     char *name   = NULL;
     size_t len   = 0;
 
-    size_t idx   = 0;
+    variable_idx_t idx   = 0;
     double value = 0;
 };
 
@@ -43,13 +44,14 @@ struct differentiator_t
 {
     treeLog_t log = {};
 
-    tree_t expression = {};
-    tree_t *diffTrees = NULL;
+    tree_t expression   = {};
+    tree_t taylor       = {};
+    tree_t *diffTrees   = NULL;
     size_t diffTreesCnt = 0;
 
-    variable_t *variables = NULL;
+    variable_t *variables    = NULL;
     size_t variablesCapacity = 0;
-    size_t variablesSize = 0;
+    size_t variablesSize     = 0;
 
     variable_t *varToDiff = NULL;
 
@@ -60,7 +62,7 @@ struct keyword_t
 {
     const char *name        = NULL;
     size_t nameLen          = 0;
-    keywordIdxes_t idx      = OP_UKNOWN;
+    keywordIdxes_t idx      = OP_UNKNOWN;
     bool isFunction         = 0;
     size_t numberOfArgs     = 0;
     const char *latexFormat = NULL;
@@ -76,14 +78,14 @@ struct keyword_t
 
 const keyword_t keywords[] = 
 {
-    KEYWORD ("uknown_keyword",  OP_UKNOWN,  0,  0, "uknoewn%e"          ),
-    KEYWORD ("+",               OP_ADD,     0,  0, "(%l \n\t+ %r)%e"    ),
-    KEYWORD ("-",               OP_SUB,     0,  0, "(%l \n\t- %r)%e"    ),
+    KEYWORD ("unknown_keyword", OP_UNKNOWN, 0,  0, "unknown%e"          ),
+    KEYWORD ("+",               OP_ADD,     0,  0, "%l \n\t+ %r%e"      ),
+    KEYWORD ("-",               OP_SUB,     0,  0, "%l \n\t- %r%e"      ),
     KEYWORD ("*",               OP_MUL,     0,  0, "%l \n\t \\cdot %r%e"),
     KEYWORD ("/",               OP_DIV,     0,  0, "\\frac {%l}{%r}%e"  ),
     KEYWORD ("^",               OP_POW,     0,  0, "{(%l)} ^ {%r}%e"    ),
-    KEYWORD ("log",             OP_LOG,     1,  2, "\\log_{%l} %r%e"    ),
-    KEYWORD ("ln",              OP_LN,      1,  1, "\\ln {%r}%e"        ),
+    KEYWORD ("log",             OP_LOG,     1,  2, "\\log_{%l} (%r)%e"  ),
+    KEYWORD ("ln",              OP_LN,      1,  1, "\\ln {(%r)}%e"      ),
     KEYWORD ("sin",             OP_SIN,     1,  1, "\\sin (%r)%e"       ),
     KEYWORD ("cos",             OP_COS,     1,  1, "\\cos (%r)%e"       ),
     KEYWORD ("tg",              OP_TG,      1,  1, "\\tan (%r)%e"       ),
@@ -116,6 +118,7 @@ void TryToFindOperator              (char *str, int len, type_t *type, treeDataT
 
 // int TreeSaveToFile               (tree_t *tree, const char *fileName);
 // int NodeSaveToFile               (node_t *node, FILE *file);
+bool NodeFindVariable               (node_t *node, variable_t *argument);
 
 int TreeCalculate                   (differentiator_t *diff, tree_t *expression);
 double NodeCalculate                (differentiator_t *diff, node_t *node);
@@ -123,7 +126,7 @@ double NodeCalculate                (differentiator_t *diff, node_t *node);
 void TreeSimplify                   (differentiator_t *diff, tree_t *tree);
 
 int TreesDiff                       (differentiator_t *diff, tree_t *expression);
-node_t *NodeDiff                    (differentiator_t *diff, node_t *expression, tree_t *resTree,
+node_t *NodeDiff                    (differentiator_t *diff, node_t *expression, tree_t *tree,
                                      variable_t *argument);
 
 #endif // K_TREE_CALC_H

@@ -123,7 +123,7 @@ enum treeError_t
     TREE_ERROR_TO_MUCH_NODES            = 1 << 4,
     TREE_ERROR_LOAD_INTO_NOT_EMPTY      = 1 << 5,
     TREE_ERROR_INVALID_NODE             = 1 << 6,
-    TREE_ERROR_INVALID_PATH             = 1 << 7, // bad value on stackNodePath
+    TREE_ERROR_INVALID_PATH             = 1 << 7, // bad value on stackNodePath // FIXME
     TREE_ERROR_CREATING_NODE            = 1 << 8,
     TREE_ERROR_SYNTAX_IN_SAVE_FILE      = 1 << 9,
     TREE_ERROR_NODE_NOT_FOUND           = 1 << 11,
