@@ -1,8 +1,53 @@
-# About
-Differentiator
+# О проекте
+Программа, которая проводит подробный анализ функции:
+
+1. Находит значение в заданной точке
+2. Находит n-ую производную
+3. Строит графики функции и всех производных
+4. Раскладывает функцию по формуле Тейлора в заданной точке
+5. Строит график формулы Тейлора в заданной точке
+
+## Сборка
+```
+clear; make
+```
+
+## Зависимости
+- [gnuplot](http://www.gnuplot.info/download.html) - для графиков
+- [graphiz](https://graphviz.org/) (только если включён флаг сборки PRINT_DEBUG)
+- [texlive](https://tug.org/texlive/) - для компиляции LaTeX
+
+### Ubuntu, Debian
+Обязательные:
+```
+sudo apt install texlive-latex-base texlive-latex-extra texlive-lang-cyrillic texlive-fonts-recommended texlive-full -y # я обязательно найду все зависимости латеха, чтобы не ставить 2 гигабайтный пакет
+sudo apt install gnuplot -y
+```
+
+Для отладки:
+```
+sudo apt install graphiz -y
+```
+
+### Windows
+Как-нибудь разберётесь
+
+## Использование
+
+В файле tree.txt запишите функцию для анализа (к примеру x^3 - (2/x + 4) * sin(x))
+
+А потом запустите программу:
+
+```
+./differentiator
+```
+
+## Пример работы программы
+
+Вот пример отчёта о функции в формате pdf - [solve.pdf](solve.pdf)
 
 
-# TODO
+## TODO
 [\*] УДАЛИТЬ double *values                                 \
 [\*] SIMPLE DUMP                                            \
 [\*] ПО КАКОЙ ПЕРЕМЕННОЙ ДИФФЕРЕНЦИРУЕМ                     \
@@ -15,5 +60,4 @@ Differentiator
 [\*] Сделать пробелы                                        \
 [\*] Форматная строка для латеха                            \
 [ ] График тейлора                                          \
-[ ] Parent'ы в дереве                                       \
-[ ] 
+[ ] Уведомлять об ошибках pdflatex
